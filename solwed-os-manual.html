@@ -1,0 +1,858 @@
+<title>Solwed OS — Manual de personalización</title>
+<style>
+  :root {
+    --paper: #eef0f3;
+    --paper-2: #e4e7ec;
+    --surface: #ffffff;
+    --ink: #1b222c;
+    --ink-dim: #4a5262;
+    --line: #d2d6dc;
+    --accent: #b8631f;
+    --accent-ink: #7a3f11;
+    --accent-tint: #f3e2cd;
+    --low-fg: #2f6b46; --low-bg: #dcecdf; --low-line: #b7d5bf;
+    --med-fg: #8a5a10; --med-bg: #f4e6c8; --med-line: #e0c68e;
+    --high-fg: #96372f; --high-bg: #f5dcd8; --high-line: #e3b3ab;
+    --code-bg: #1b222c;
+    --code-ink: #e7e4da;
+    --code-accent: #e0954a;
+    --shadow: 0 1px 2px rgba(27,34,44,0.06), 0 6px 20px -8px rgba(27,34,44,0.18);
+    --serif: "Charter", "Iowan Old Style", "Georgia Pro", Georgia, ui-serif, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Code", "Consolas", "SF Mono", Menlo, monospace;
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #12151a;
+    --paper-2: #171b21;
+    --surface: #1b2028;
+    --ink: #e6e8eb;
+    --ink-dim: #a3abb8;
+    --line: #2b313b;
+    --accent: #e0954a;
+    --accent-ink: #f3c791;
+    --accent-tint: #3a2a17;
+    --low-fg: #8fd6a6; --low-bg: #1b2e22; --low-line: #315a3f;
+    --med-fg: #e5c377; --med-bg: #362b17; --med-line: #6b5528;
+    --high-fg: #ec9d94; --high-bg: #3a201d; --high-line: #6e3a34;
+    --code-bg: #0c0f13;
+    --code-ink: #dfe3e8;
+    --code-accent: #f0a862;
+    --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 10px 30px -10px rgba(0,0,0,0.6);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #12151a;
+      --paper-2: #171b21;
+      --surface: #1b2028;
+      --ink: #e6e8eb;
+      --ink-dim: #a3abb8;
+      --line: #2b313b;
+      --accent: #e0954a;
+      --accent-ink: #f3c791;
+      --accent-tint: #3a2a17;
+      --low-fg: #8fd6a6; --low-bg: #1b2e22; --low-line: #315a3f;
+      --med-fg: #e5c377; --med-bg: #362b17; --med-line: #6b5528;
+      --high-fg: #ec9d94; --high-bg: #3a201d; --high-line: #6e3a34;
+      --code-bg: #0c0f13;
+      --code-ink: #dfe3e8;
+      --code-accent: #f0a862;
+      --shadow: 0 1px 2px rgba(0,0,0,0.4), 0 10px 30px -10px rgba(0,0,0,0.6);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--accent-ink); }
+  a:focus-visible, summary:focus-visible, details:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: clamp(20px, 4vw, 56px) clamp(16px, 4vw, 40px) 80px;
+  }
+
+  /* ---------- Header ---------- */
+  .masthead {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 32px;
+  }
+  .monogram {
+    flex: 0 0 auto;
+    width: 56px; height: 56px;
+    border-radius: 10px;
+    background: linear-gradient(155deg, var(--accent), var(--accent-ink));
+    color: #fff8ee;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 28px;
+    box-shadow: var(--shadow);
+  }
+  .masthead-text { flex: 1 1 auto; min-width: 0; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 0 0 6px;
+  }
+  h1.title {
+    font-family: var(--serif);
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.15;
+    margin: 0 0 10px;
+    text-wrap: balance;
+    font-weight: 600;
+  }
+  .dek {
+    font-size: 16px;
+    color: var(--ink-dim);
+    max-width: 62ch;
+    margin: 0;
+  }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 14px;
+  }
+  .meta-chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink-dim);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 3px 10px;
+  }
+
+  /* ---------- Callouts ---------- */
+  .callout {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 0 0 28px;
+    box-shadow: var(--shadow);
+  }
+  .callout h3 {
+    font-family: var(--sans);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 0 0 6px;
+    color: var(--accent-ink);
+  }
+  .callout p { margin: 0 0 8px; color: var(--ink-dim); font-size: 14.5px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout.warn { border-left-color: var(--high-fg); }
+  .callout.warn h3 { color: var(--high-fg); }
+
+  /* ---------- Layout grid ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 40px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  nav.toc {
+    position: sticky;
+    top: 20px;
+    font-size: 13.5px;
+    align-self: start;
+  }
+  @media (max-width: 860px) {
+    nav.toc { position: static; margin-bottom: 8px; }
+  }
+  nav.toc .toc-title {
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11.5px;
+    color: var(--ink-dim);
+    margin-bottom: 10px;
+  }
+  nav.toc ol { list-style: none; margin: 0 0 18px; padding: 0; }
+  nav.toc > ol > li { margin-bottom: 14px; }
+  nav.toc .level-label {
+    font-weight: 600;
+    color: var(--ink);
+    display: block;
+    margin-bottom: 4px;
+  }
+  nav.toc .level-label a { color: inherit; text-decoration: none; }
+  nav.toc ol ol { margin: 0; padding-left: 14px; border-left: 1px solid var(--line); }
+  nav.toc ol ol li { margin-bottom: 3px; }
+  nav.toc ol ol a {
+    text-decoration: none;
+    color: var(--ink-dim);
+    display: block;
+    padding: 2px 0;
+  }
+  nav.toc ol ol a:hover { color: var(--accent-ink); }
+
+  .legend {
+    display: flex; flex-direction: column; gap: 6px;
+    padding-top: 12px; border-top: 1px solid var(--line);
+    font-size: 12.5px;
+  }
+  .legend-title {
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    color: var(--ink-dim);
+    margin-bottom: 2px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 7px; color: var(--ink-dim); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .dot.low { background: var(--low-fg); }
+  .dot.med { background: var(--med-fg); }
+  .dot.high { background: var(--high-fg); }
+
+  main { min-width: 0; }
+
+  /* ---------- Level sections ---------- */
+  section.level { margin-bottom: 44px; }
+  .level-header {
+    display: flex; align-items: baseline; gap: 12px;
+    margin-bottom: 6px;
+  }
+  .level-num {
+    font-family: var(--serif);
+    font-size: 15px;
+    color: var(--accent-ink);
+    background: var(--accent-tint);
+    border-radius: 6px;
+    padding: 2px 9px;
+    font-weight: 600;
+  }
+  h2.level-title {
+    font-family: var(--serif);
+    font-size: clamp(20px, 2.6vw, 26px);
+    margin: 0;
+    font-weight: 600;
+    text-wrap: balance;
+  }
+  .level-sub {
+    color: var(--ink-dim);
+    font-size: 14.5px;
+    margin: 0 0 20px;
+    max-width: 68ch;
+  }
+
+  /* ---------- Task card ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 22px 24px 24px;
+    margin-bottom: 20px;
+    scroll-margin-top: 20px;
+  }
+  .card-head {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-bottom: 4px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+  }
+  .badge.low  { color: var(--low-fg);  background: var(--low-bg);  border-color: var(--low-line); }
+  .badge.med  { color: var(--med-fg);  background: var(--med-bg);  border-color: var(--med-line); }
+  .badge.high { color: var(--high-fg); background: var(--high-bg); border-color: var(--high-line); }
+
+  h3.card-title {
+    font-family: var(--serif);
+    font-size: 20px;
+    margin: 4px 0 6px;
+    font-weight: 600;
+  }
+  .card-why {
+    color: var(--ink-dim);
+    font-size: 14.5px;
+    margin: 0 0 16px;
+    max-width: 68ch;
+  }
+
+  .files {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin: 0 0 16px;
+  }
+  .file-chip {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 2px 7px;
+    color: var(--ink-dim);
+  }
+
+  ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+  ol.steps > li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 34px;
+    margin-bottom: 14px;
+  }
+  ol.steps > li:last-child { margin-bottom: 0; }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0; top: 1px;
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: var(--accent-tint);
+    color: var(--accent-ink);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  ol.steps p { margin: 0 0 6px; }
+  ol.steps p:last-child { margin-bottom: 0; }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.92em;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 0.05em 0.4em;
+    color: var(--accent-ink);
+  }
+
+  pre {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-radius: 8px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    margin: 8px 0 0;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+  }
+  pre .cmt { color: var(--ink-dim); }
+  pre .fl  { color: var(--code-accent); }
+
+  .aviso {
+    display: flex; gap: 10px;
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--high-bg);
+    border: 1px solid var(--high-line);
+    font-size: 13.5px;
+    color: var(--high-fg);
+  }
+  .aviso strong { color: inherit; }
+
+  .tip {
+    display: flex; gap: 10px;
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--paper-2);
+    border: 1px solid var(--line);
+    font-size: 13.5px;
+    color: var(--ink-dim);
+  }
+
+  hr.divider {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 40px 0;
+  }
+
+  footer.colophon {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    color: var(--ink-dim);
+    font-size: 12.5px;
+    font-family: var(--mono);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .card { transition: box-shadow 0.15s ease; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="monogram" aria-hidden="true">S</div>
+    <div class="masthead-text">
+      <p class="eyebrow">Solwed OS · manual de construcción</p>
+      <h1 class="title">Personalizando Anduin OS para Solwed</h1>
+      <p class="dek">Guía paso a paso para ir aplicando, bloque a bloque, las modificaciones de marca y comportamiento sobre la distro base con Cubic — de lo más visible y reversible a lo más estructural.</p>
+      <div class="meta-row">
+        <span class="meta-chip">Herramienta: Cubic</span>
+        <span class="meta-chip">Base: Anduin OS (Ubuntu)</span>
+        <span class="meta-chip">Fase: alpha</span>
+        <span class="meta-chip">4 niveles · 15 tareas</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="callout warn">
+    <h3>Antes de tocar nada</h3>
+    <p>Este documento asume que Anduin OS usa <strong>GNOME</strong> con extensiones al estilo Windows (tipo dash-to-panel / arc-menu) para el escritorio, que es lo habitual en esta distro. No tengo acceso a tu instalación real, así que antes de cualquier paso de nivel 3 confirma el entorno exacto abriendo la terminal de Cubic (paso <em>Customize → Terminal</em>) y ejecutando:</p>
+    <pre><code>echo $XDG_CURRENT_DESKTOP
+dpkg -l | grep -i "gnome-shell-extension\|dash-to-panel\|arc-menu"</code></pre>
+    <p>Si los nombres no coinciden con lo descrito aquí, el mecanismo (dconf + gsettings) sigue siendo válido — solo cambian las rutas de esquema.</p>
+  </div>
+
+  <div class="layout">
+
+    <nav class="toc" aria-label="Índice">
+      <p class="toc-title">Contenido</p>
+      <ol>
+        <li>
+          <span class="level-label"><a href="#nivel-1">Nivel 1 — Identidad visual</a></span>
+          <ol>
+            <li><a href="#item-wallpaper">Fondos y bloqueo</a></li>
+            <li><a href="#item-oslogo">Identidad del sistema</a></li>
+            <li><a href="#item-icons">Iconos y cursores</a></li>
+          </ol>
+        </li>
+        <li>
+          <span class="level-label"><a href="#nivel-2">Nivel 2 — Arranque y login</a></span>
+          <ol>
+            <li><a href="#item-plymouth">Splash de arranque</a></li>
+            <li><a href="#item-grub">GRUB</a></li>
+            <li><a href="#item-login">Pantalla de login</a></li>
+            <li><a href="#item-motd">MOTD / terminal</a></li>
+          </ol>
+        </li>
+        <li>
+          <span class="level-label"><a href="#nivel-3">Nivel 3 — Comportamiento</a></span>
+          <ol>
+            <li><a href="#item-apps">Apps preinstaladas</a></li>
+            <li><a href="#item-panel">Menú inicio / taskbar</a></li>
+            <li><a href="#item-locale">Región e idioma</a></li>
+            <li><a href="#item-browser">Navegador</a></li>
+          </ol>
+        </li>
+        <li>
+          <span class="level-label"><a href="#nivel-4">Nivel 4 — Avanzado</a></span>
+          <ol>
+            <li><a href="#item-repo">Repositorio APT propio</a></li>
+            <li><a href="#item-wizard">Asistente de bienvenida</a></li>
+            <li><a href="#item-support">Soporte remoto</a></li>
+          </ol>
+        </li>
+        <li>
+          <span class="level-label"><a href="#cubic-workflow">Flujo de trabajo en Cubic</a></span>
+        </li>
+      </ol>
+      <div class="legend">
+        <p class="legend-title">Riesgo</p>
+        <div class="legend-item"><span class="dot low"></span> Bajo — fácil de revertir</div>
+        <div class="legend-item"><span class="dot med"></span> Medio — probar en VM antes de distribuir</div>
+        <div class="legend-item"><span class="dot high"></span> Alto — infraestructura o UX nueva</div>
+      </div>
+    </nav>
+
+    <main>
+
+      <!-- NIVEL 1 -->
+      <section class="level" id="nivel-1">
+        <div class="level-header">
+          <span class="level-num">Nivel 1</span>
+          <h2 class="level-title">Identidad visual rápida</h2>
+        </div>
+        <p class="level-sub">Cambios de archivo y texto, sin tocar comportamiento. Se ven inmediatamente y son triviales de deshacer.</p>
+
+        <article class="card" id="item-wallpaper">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <h3 class="card-title">Fondo de pantalla y bloqueo</h3>
+          <p class="card-why">Sustituye los wallpapers de Ubuntu/Anduin por los de Solwed, incluyendo el que se ve en la pantalla de bloqueo.</p>
+          <div class="files">
+            <span class="file-chip">/usr/share/backgrounds/solwed/</span>
+            <span class="file-chip">/usr/share/gnome-background-properties/solwed.xml</span>
+            <span class="file-chip">/etc/dconf/db/local.d/</span>
+          </div>
+          <ol class="steps">
+            <li><p>En la terminal de Cubic, crea la carpeta y copia tus imágenes (recomendado exportar a 3840×2160 y una versión 1920×1080):</p>
+              <pre><code><span class="cmt"># dentro del chroot de Cubic</span>
+mkdir -p /usr/share/backgrounds/solwed
+cp fondo-claro.png fondo-oscuro.png /usr/share/backgrounds/solwed/</code></pre>
+            </li>
+            <li><p>Registra el fondo para que aparezca en el selector de "Fondo de pantalla" con nombre propio, creando <code>/usr/share/gnome-background-properties/solwed.xml</code>:</p>
+              <pre><code>&lt;?xml version="1.0"?&gt;
+&lt;!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd"&gt;
+&lt;wallpapers&gt;
+  &lt;wallpaper deleted="false"&gt;
+    &lt;name&gt;Solwed&lt;/name&gt;
+    &lt;filename&gt;/usr/share/backgrounds/solwed/fondo-claro.png&lt;/filename&gt;
+    &lt;filename-dark&gt;/usr/share/backgrounds/solwed/fondo-oscuro.png&lt;/filename-dark&gt;
+    &lt;options&gt;zoom&lt;/options&gt;
+  &lt;/wallpaper&gt;
+&lt;/wallpapers&gt;</code></pre>
+            </li>
+            <li><p>Fija ese fondo como valor por defecto vía dconf (así lo trae ya activado cualquier usuario nuevo), creando <code>/etc/dconf/db/local.d/00-solwed-background</code>:</p>
+              <pre><code>[org/gnome/desktop/background]
+picture-uri='file:///usr/share/backgrounds/solwed/fondo-claro.png'
+picture-uri-dark='file:///usr/share/backgrounds/solwed/fondo-oscuro.png'
+picture-options='zoom'
+
+[org/gnome/desktop/screensaver]
+picture-uri='file:///usr/share/backgrounds/solwed/fondo-claro.png'</code></pre>
+              <p>Y aplica: <code>dconf update</code>.</p>
+            </li>
+            <li><p>Opcional — si quieres que el usuario <em>no pueda</em> cambiarlo, añade la ruta de la clave en un fichero dentro de <code>/etc/dconf/db/local.d/locks/</code>.</p></li>
+          </ol>
+          <div class="tip">No necesitas sesión gráfica para verlo: instala el paquete <code>eog</code> o simplemente confía en el XML — la validación real la harás arrancando la ISO en una VM.</div>
+        </article>
+
+        <article class="card" id="item-oslogo">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <h3 class="card-title">Identidad del sistema ("Acerca de")</h3>
+          <p class="card-why">Que la pantalla de Ajustes → Acerca de, y cualquier script que consulte la versión del SO, muestren "Solwed OS" en vez de Ubuntu/Anduin.</p>
+          <div class="files">
+            <span class="file-chip">/etc/os-release</span>
+            <span class="file-chip">/etc/lsb-release</span>
+          </div>
+          <ol class="steps">
+            <li><p>Edita <code>/etc/os-release</code> conservando <code>ID_LIKE=ubuntu</code> y el <code>VERSION_CODENAME</code> real (apt y otros scripts dependen de él para resolver repositorios — no lo inventes):</p>
+              <pre><code>NAME="Solwed OS"
+PRETTY_NAME="Solwed OS 1.0 (Alpha)"
+ID=solwedos
+ID_LIKE=ubuntu
+VERSION="1.0"
+VERSION_ID="1.0"
+VERSION_CODENAME=noble
+HOME_URL="https://solwed.es"
+SUPPORT_URL="https://solwed.es/soporte"
+BUG_REPORT_URL="https://solwed.es/soporte"</code></pre>
+            </li>
+            <li><p>Edita <code>/etc/lsb-release</code> en paralelo para herramientas que aún lo leen:</p>
+              <pre><code>DISTRIB_ID=SolwedOS
+DISTRIB_RELEASE=1.0
+DISTRIB_CODENAME=solwed
+DISTRIB_DESCRIPTION="Solwed OS 1.0"</code></pre>
+            </li>
+            <li><p>Si quieres logo propio en el panel "Acerca de" de GNOME Settings, coloca un SVG en <code>/usr/share/icons/hicolor/scalable/apps/solwed-logo.svg</code>, actualiza la caché (<code>gtk-update-icon-cache /usr/share/icons/hicolor</code>) y referencia <code>LOGO=solwed-logo</code> dentro de <code>/etc/os-release</code>.</p></li>
+          </ol>
+        </article>
+
+        <article class="card" id="item-icons">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo-medio</span></div>
+          <h3 class="card-title">Iconos, cursores y acento de color</h3>
+          <p class="card-why">Anduin ya trae un tema tipo Fluent/WhiteSicel para parecerse a Windows 11 — en esta fase solo ajusta el acento de color, no cambies el tema entero todavía.</p>
+          <ol class="steps">
+            <li><p>Identifica el tema activo y si soporta variantes de color:</p>
+              <pre><code>gsettings get org.gnome.desktop.interface icon-theme
+gsettings get org.gnome.desktop.interface gtk-theme
+gsettings get org.gnome.desktop.interface cursor-theme</code></pre>
+            </li>
+            <li><p>Si el tema expone variables de acento (muchos forks de Fluent/WhiteSur lo hacen), cambia solo el color de acento por el de Solwed en su hoja <code>gtk.css</code> — busca variables tipo <code>@accent_color</code> o <code>--accent-bg-color</code> antes de tocar nada más.</p></li>
+          </ol>
+          <div class="aviso"><strong>Aviso:</strong> no se puede validar visualmente un tema GTK dentro del chroot de Cubic (no hay sesión gráfica). Guarda el cambio, genera la ISO y arráncala en una VM (QEMU/VirtualBox) para comprobar que no rompe el renderizado antes de seguir iterando.</div>
+        </article>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- NIVEL 2 -->
+      <section class="level" id="nivel-2">
+        <div class="level-header">
+          <span class="level-num">Nivel 2</span>
+          <h2 class="level-title">Arranque y login</h2>
+        </div>
+        <p class="level-sub">Lo primero que ve un cliente al encender el equipo. Requiere regenerar initramfs/GRUB, así que cada cambio debe probarse en una VM antes de pasar al siguiente.</p>
+
+        <article class="card" id="item-plymouth">
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span></div>
+          <h3 class="card-title">Splash de arranque (Plymouth)</h3>
+          <p class="card-why">La animación con logo que se ve mientras el sistema arranca, antes del login.</p>
+          <div class="files">
+            <span class="file-chip">/usr/share/plymouth/themes/solwed/</span>
+          </div>
+          <ol class="steps">
+            <li><p>Instala las dependencias si faltan y parte de un tema existente como base (es más fiable que escribir el script desde cero):</p>
+              <pre><code>apt install plymouth-x11 plymouth-themes
+cp -r /usr/share/plymouth/themes/spinner /usr/share/plymouth/themes/solwed
+cd /usr/share/plymouth/themes/solwed
+mv spinner.plymouth solwed.plymouth
+mv spinner.script solwed.script</code></pre>
+            </li>
+            <li><p>Edita <code>solwed.plymouth</code> (metadatos) y dentro de <code>solwed.script</code> sustituye la referencia a la imagen del logo y el color del spinner por los de Solwed — son las únicas líneas que necesitas tocar en un theme de tipo "spinner".</p></li>
+            <li><p>Regístralo como el tema por defecto:</p>
+              <pre><code>update-alternatives --install /usr/share/plymouth/themes/default.plymouth \
+  default.plymouth /usr/share/plymouth/themes/solwed/solwed.plymouth 100
+update-alternatives --set default.plymouth \
+  /usr/share/plymouth/themes/solwed/solwed.plymouth</code></pre>
+            </li>
+            <li><p>Regenera el initramfs para que el nuevo tema quede empaquetado en la ISO:</p>
+              <pre><code>update-initramfs -u</code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Aviso:</strong> un error de sintaxis en el <code>.script</code> puede dejar el arranque en pantalla negra sin mensaje de error visible. Prueba siempre en una VM antes de tocar el siguiente punto.</div>
+        </article>
+
+        <article class="card" id="item-grub">
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span></div>
+          <h3 class="card-title">GRUB</h3>
+          <p class="card-why">Fondo, nombre y tiempos de espera del menú de arranque.</p>
+          <div class="files">
+            <span class="file-chip">/etc/default/grub</span>
+          </div>
+          <ol class="steps">
+            <li><p>Coloca una imagen de fondo (PNG/JPG, resolución de pantalla habitual) en, por ejemplo, <code>/boot/grub/solwed-fondo.png</code>.</p></li>
+            <li><p>Edita <code>/etc/default/grub</code>:</p>
+              <pre><code>GRUB_DISTRIBUTOR="Solwed OS"
+GRUB_BACKGROUND="/boot/grub/solwed-fondo.png"
+GRUB_TIMEOUT=5
+GRUB_TIMEOUT_STYLE=menu</code></pre>
+            </li>
+            <li><p>Regenera la configuración:</p>
+              <pre><code>update-grub</code></pre>
+            </li>
+          </ol>
+          <div class="tip">Comprueba tras una instalación real en VM que el instalador (Calamares/Ubiquity, según cuál use Anduin) no sobreescribe estos valores al final del proceso.</div>
+        </article>
+
+        <article class="card" id="item-login">
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span></div>
+          <h3 class="card-title">Pantalla de login</h3>
+          <p class="card-why">Fondo y logo en la pantalla previa a iniciar sesión.</p>
+          <ol class="steps">
+            <li><p>Comprueba qué gestor de sesiones usa Anduin:</p>
+              <pre><code>cat /etc/X11/default-display-manager</code></pre>
+            </li>
+            <li><p>Si es <strong>LightDM</strong> (más sencillo), edita <code>/etc/lightdm/lightdm-gtk-greeter.conf</code>:</p>
+              <pre><code>[greeter]
+background=/usr/share/backgrounds/solwed/fondo-claro.png
+logo=/usr/share/icons/hicolor/scalable/apps/solwed-logo.svg
+default-user-image=/usr/share/pixmaps/solwed-avatar.png</code></pre>
+            </li>
+            <li><p>Si es <strong>GDM</strong> (más habitual en GNOME/Anduin), el fondo se controla vía el CSS del shell-theme, que corre como el usuario del sistema <code>Debian-gdm</code> — es más cómodo instalar temporalmente una herramienta de theming de gdm en el chroot, generar el CSS con ella, copiar solo el resultado, y luego desinstalar la herramienta antes de cerrar el proyecto en Cubic.</p></li>
+          </ol>
+        </article>
+
+        <article class="card" id="item-motd">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <h3 class="card-title">MOTD y terminal</h3>
+          <p class="card-why">Mensaje de bienvenida que se ve al abrir una terminal, útil para dejar enlaces de soporte visibles.</p>
+          <div class="files">
+            <span class="file-chip">/etc/update-motd.d/</span>
+            <span class="file-chip">/etc/default/motd-news</span>
+          </div>
+          <ol class="steps">
+            <li><p>Desactiva la publicidad de Canonical en el motd:</p>
+              <pre><code>sed -i 's/ENABLED=1/ENABLED=0/' /etc/default/motd-news</code></pre>
+            </li>
+            <li><p>Crea tu propio script ejecutable, por ejemplo <code>/etc/update-motd.d/00-solwed</code>:</p>
+              <pre><code>#!/bin/sh
+echo
+echo "  Solwed OS — soporte: https://solwed.es/soporte"
+echo</code></pre>
+              <p>Y dale permisos de ejecución: <code>chmod +x /etc/update-motd.d/00-solwed</code>.</p>
+            </li>
+          </ol>
+        </article>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- NIVEL 3 -->
+      <section class="level" id="nivel-3">
+        <div class="level-header">
+          <span class="level-num">Nivel 3</span>
+          <h2 class="level-title">Comportamiento y apps</h2>
+        </div>
+        <p class="level-sub">Aquí ya se toca qué trae instalado el sistema y cómo se comporta el escritorio por defecto — conviene validar cada cambio en una VM antes de encadenar el siguiente.</p>
+
+        <article class="card" id="item-apps">
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span></div>
+          <h3 class="card-title">Apps preinstaladas</h3>
+          <p class="card-why">Quitar lo que un cliente de Solwed no necesita (juegos, LibreOffice si no aplica) y dejar preinstaladas vuestras herramientas.</p>
+          <ol class="steps">
+            <li><p>Antes de quitar un paquete, simula la operación para ver qué más se llevaría por delante:</p>
+              <pre><code>apt-get -s remove nombre-paquete</code></pre>
+            </li>
+            <li><p>Si el resultado no toca nada del escritorio o de las extensiones que usa Anduin para el look Windows, aplícalo de verdad:</p>
+              <pre><code>apt remove --purge nombre-paquete</code></pre>
+            </li>
+            <li><p>Para añadir software propio, lo más limpio es empaquetarlo como <code>.deb</code> e instalarlo dentro del chroot (o publicarlo en vuestro propio repo — ver Nivel 4):</p>
+              <pre><code>apt install ./solwed-agente-soporte_1.0_amd64.deb</code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Aviso:</strong> quitar un paquete de sistema como una extensión de GNOME puede romper el escritorio si Anduin depende de ella para el efecto "estilo Windows". Revisa dependientes con <code>apt-cache rdepends nombre-paquete</code> antes de purgar.</div>
+        </article>
+
+        <article class="card" id="item-panel">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo medio-alto</span></div>
+          <h3 class="card-title">Menú de inicio y barra de tareas</h3>
+          <p class="card-why">La pieza más "Anduin" de todas — normalmente gestionada por extensiones de GNOME (tipo dash-to-panel para la barra, arc-menu para el menú inicio).</p>
+          <ol class="steps">
+            <li><p>Esta parte no se puede ajustar a ciegas dentro del chroot de Cubic porque necesita una sesión gráfica real. Arranca primero la ISO tal cual en una VM y confirma las extensiones activas:</p>
+              <pre><code>gnome-extensions list --enabled</code></pre>
+            </li>
+            <li><p>Configura a mano en esa VM el menú, los anclajes y la posición de la barra tal y como quieres que venga por defecto.</p></li>
+            <li><p>Exporta esa configuración ya ajustada:</p>
+              <pre><code>dconf dump /org/gnome/shell/extensions/dash-to-panel/ &gt; dash-to-panel.ini</code></pre>
+            </li>
+            <li><p>Vuelve al chroot de Cubic y convierte ese volcado en el valor por defecto del sistema, en <code>/etc/dconf/db/local.d/01-solwed-panel</code> (con la cabecera de sección correspondiente, p. ej. <code>[org/gnome/shell/extensions/dash-to-panel]</code>), más las apps ancladas:</p>
+              <pre><code>[org/gnome/shell]
+favorite-apps=['firefox.desktop', 'solwed-soporte.desktop', 'org.gnome.Nautilus.desktop']</code></pre>
+              <p>Aplica con <code>dconf update</code>.</p>
+            </li>
+          </ol>
+          <div class="tip">Documenta en tu changelog qué esquema dconf corresponde a qué extensión — la versión exacta de Anduin puede cambiar de una extensión a otra entre releases.</div>
+        </article>
+
+        <article class="card" id="item-locale">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <h3 class="card-title">Región, idioma y teclado por defecto</h3>
+          <p class="card-why">Que el sistema salga ya listo en español, con teclado ES y hora de Madrid, sin pasar por el asistente de instalación.</p>
+          <ol class="steps">
+            <li><p>Genera e instala el locale español:</p>
+              <pre><code>locale-gen es_ES.UTF-8
+update-locale LANG=es_ES.UTF-8</code></pre>
+            </li>
+            <li><p>Teclado, en <code>/etc/default/keyboard</code>:</p>
+              <pre><code>XKBLAYOUT="es"</code></pre>
+            </li>
+            <li><p>Zona horaria (el enlace simbólico es más fiable que <code>timedatectl</code> dentro de un chroot sin systemd corriendo):</p>
+              <pre><code>ln -sf /usr/share/zoneinfo/Europe/Madrid /etc/localtime</code></pre>
+            </li>
+          </ol>
+        </article>
+
+        <article class="card" id="item-browser">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <h3 class="card-title">Navegador por defecto</h3>
+          <p class="card-why">Página de inicio y marcadores apuntando al soporte/portal de Solwed desde el primer arranque.</p>
+          <ol class="steps">
+            <li><p>Si el navegador es Firefox, usa el mecanismo oficial de políticas de empresa (no toca perfiles de usuario, así que sobrevive a la creación de cuentas nuevas): crea <code>/usr/lib/firefox/distribution/policies.json</code>:</p>
+              <pre><code>{
+  "policies": {
+    "Homepage": {
+      "URL": "https://solwed.es",
+      "StartPage": "homepage"
+    },
+    "Bookmarks": [
+      { "Title": "Soporte Solwed", "URL": "https://solwed.es/soporte", "Placement": "toolbar" }
+    ]
+  }
+}</code></pre>
+            </li>
+          </ol>
+        </article>
+      </section>
+
+      <hr class="divider" />
+
+      <!-- NIVEL 4 -->
+      <section class="level" id="nivel-4">
+        <div class="level-header">
+          <span class="level-num">Nivel 4</span>
+          <h2 class="level-title">Avanzado</h2>
+        </div>
+        <p class="level-sub">Esto ya es infraestructura y producto propio, no solo configuración de la ISO — resérvalo para cuando el alpha esté estable.</p>
+
+        <article class="card" id="item-repo">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span></div>
+          <h3 class="card-title">Repositorio APT propio</h3>
+          <p class="card-why">Poder empujar actualizaciones y herramientas de Solwed a los equipos ya instalados, sin reconstruir la ISO cada vez.</p>
+          <ol class="steps">
+            <li><p>Monta el repositorio en un servidor de Solwed con <code>aptly</code> o <code>reprepro</code> (p. ej. accesible en <code>repo.solwed.es</code>).</p></li>
+            <li><p>Fírmalo con una clave GPG propia dedicada a esto (no reutilices una clave personal).</p></li>
+            <li><p>Dentro de la ISO, preinstala el fichero de fuente y la clave pública para que el repo ya venga dado de alta:</p>
+              <pre><code>/etc/apt/sources.list.d/solwed.list
+/etc/apt/trusted.gpg.d/solwed.gpg</code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Aviso:</strong> esto introduce gestión de claves y un servicio nuevo que mantener. Documenta el proceso de rotación de la clave GPG antes de depender de esto en producción.</div>
+        </article>
+
+        <article class="card" id="item-wizard">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span></div>
+          <h3 class="card-title">Asistente de bienvenida (primer arranque)</h3>
+          <p class="card-why">Una pantalla propia de Solwed que reciba al cliente la primera vez que entra, en vez del asistente genérico de GNOME.</p>
+          <ol class="steps">
+            <li><p>Opción rápida: parchear textos e imágenes de <code>gnome-initial-setup</code> con vuestro branding.</p></li>
+            <li><p>Opción a medida: app propia lanzada una sola vez vía <code>~/.config/autostart/solwed-welcome.desktop</code>, controlando el "ya visto" con un fichero marcador, por ejemplo <code>~/.config/solwed/.welcomed</code>.</p></li>
+          </ol>
+          <p class="card-why">Esta es la tarea con más desarrollo real detrás (ya no es solo configuración) — déjala para cuando el resto esté asentado.</p>
+        </article>
+
+        <article class="card" id="item-support">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span></div>
+          <h3 class="card-title">Soporte remoto preconfigurado</h3>
+          <p class="card-why">Que vuestro equipo pueda asistir a un cliente sin que tenga que instalar nada primero.</p>
+          <ol class="steps">
+            <li><p>Preinstala el cliente de soporte remoto (agente propio, o algo tipo RustDesk servido desde vuestro repo del punto anterior) con su configuración apuntando ya al servidor de Solwed en <code>/etc/solwed/remote-support.conf</code>.</p></li>
+            <li><p>Registra el servicio pero <strong>no lo actives por defecto</strong>:</p>
+              <pre><code>systemctl enable solwed-agent.service
+<span class="cmt"># no ejecutar systemctl start — que lo active el cliente</span></code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Aviso:</strong> dejar un agente de acceso remoto activo sin consentimiento explícito del cliente es un problema de privacidad y de confianza, no solo técnico. Que quede instalado y listo, pero apagado hasta que el usuario decida activarlo.</div>
+        </article>
+      </section>
+
+      <hr class="divider" />
+
+      <section class="level" id="cubic-workflow">
+        <div class="level-header">
+          <h2 class="level-title">Flujo de trabajo recomendado en Cubic</h2>
+        </div>
+        <article class="card">
+          <ol class="steps">
+            <li><p>Antes de un bloque de cambios grande (por ejemplo, todo el Nivel 2), guarda el proyecto de Cubic tal cual está — conserva el chroot completo como punto de partida.</p></li>
+            <li><p>Lleva un <code>CHANGELOG.md</code> fuera de la ISO, en tu propia máquina, anotando qué tocaste en cada sesión y por qué — te ahorrará tiempo cuando algo falle tres pasos después.</p></li>
+            <li><p>De vez en cuando, exporta el chroot completo con un nombre descriptivo como copia de seguridad adicional:</p>
+              <pre><code>tar czf solwed-v0.1-antes-de-plymouth.tar.gz /ruta/al/chroot</code></pre>
+            </li>
+            <li><p>Genera la ISO y arráncala siempre en una VM (QEMU o VirtualBox) para comprobar arranque, login y escritorio <em>antes</em> de encadenar el siguiente bloque de la lista.</p></li>
+          </ol>
+        </article>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="colophon">
+    Manual de referencia interno — Solwed · basado en Anduin OS (Ubuntu) + Cubic
+  </footer>
+
+</div>
