@@ -118,10 +118,4 @@ Pendiente desde el bug #4/aparcado en la 2.2: el circulito de carga (spinner) y 
 
 **Fix:** escrito un parser/editor de Xcursor en Python (formato simple: TOC + chunks de imagen ARGB32 crudo) que recorre cada fichero, detecta píxeles con matiz azul (170°-250°) y un rango de color apreciable (para no disparar en el ruido de antialiasing casi-negro de los cursores normales — ese fue el primer intento, con falsos positivos en `default`/`left_ptr`/`text` de unos pocos píxeles cada uno, descartados con un umbral mínimo de 80 píxeles por fichero) y rota el matiz a nuestro amarillo (#F5E70A) conservando saturación/brillo/alpha originales — así se respeta el sombreado y el antialiasing de cada insignia, no es un tinte plano. 56 de los 111 ficheros de cada tema llevaban esta insignia azul; el resto (cursor básico, texto, manita, etc.) no se tocan. Assets en `branding/cursors/{Fluent-cursors,Fluent-dark-cursors}/cursors/`.
 
-**Pendiente de aplicar y confirmar en el Dell** — son solo ficheros binarios en `/usr/share/icons/`, sudo normal desde el host, sin chroot necesario:
-```bash
-sudo cp -r /home/aruizb/SolwedOS/branding/cursors/Fluent-cursors/cursors/. \
-  /home/aruizb/cubic-projects/SolwedOS/custom-root/usr/share/icons/Fluent-cursors/cursors/
-sudo cp -r /home/aruizb/SolwedOS/branding/cursors/Fluent-dark-cursors/cursors/. \
-  /home/aruizb/cubic-projects/SolwedOS/custom-root/usr/share/icons/Fluent-dark-cursors/cursors/
-```
+**Confirmada en el Dell — 2026-07-08.** Spinner de carga y cursor de redimensionar en amarillo Solwed, sin efectos secundarios en el resto de cursores. Bug del acento en cursores (aparcado desde el bug #4/2.2.0) cerrado del todo.
