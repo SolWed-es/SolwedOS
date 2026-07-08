@@ -65,6 +65,22 @@ Investigación de los 4 puntos del manual antes de tocar nada:
 
    Sin una clave de config que lo resuelva, la única vía es la propia imagen. Decisión: oscurecer `solwed-claro.png` de forma global y moderada (factor ×0.80 sobre RGB, de ~248 a ~198 de media) en vez de limitarlo a la franja donde cae el panel — sigue leyéndose como tema claro pero da margen suficiente al desenfoque/oscurecido que ya aplica GNOME por defecto en el bloqueo. Aplicado en `branding/wallpapers/solwed-claro.png` (ya incluye también el reposicionado del logo del punto 1).
 
+## Alpha 2.2.0 — confirmada en el Dell (2026-07-08)
+
+Nivel 2 funcionando de punta a punta: Plymouth, GDM, menú de arranque y las 3 pegas de arriba, todo probado en hardware real.
+
+## Alpha 2.3.0 — pulido visual del splash y reposicionado del logo (en progreso, 2026-07-08)
+
+Dos pegas de acabado sobre la 2.2.0:
+
+1. **Watermark de Plymouth: de icono suelto a wordmark.** Antes solo mostraba la marca "W." (el icono de `LogoSolwed.svg`). Ahora dice "Solwed OS" + el icono, imitando el lockup de `solwed.es`. El texto se renderiza con la fuente **Ubuntu Bold** (variable font ya instalada en el host, coincide con la base Ubuntu de AnduinOS; Cantarell —la que declara el tema Plymouth— no está instalada como paquete en el chroot, así que no había garantía de que se viera en el arranque real).
+
+   El icono "W." también lleva ahora el acento amarillo de Solwed en la 1ª y 3ª de sus 4 líneas diagonales, igual que la V amarilla del wordmark `solwed.es`. Como el SVG fuente es un único `<path>` (cuadrado negro con la marca recortada en negativo vía fill-rule), no hay una forma directa de aislar "la línea 1" o "la línea 3" — se resolvió calculando, fila a fila, los 4 tramos horizontales que forman el trazo en zigzag (contando "runs" de píxeles activos por fila) y recoloreando por posición dentro de esos 4 tramos, no por sub-trazo del SVG. Aplicado también en `bgrt-fallback.png` (mismo icono, sin texto, por consistencia). Nuevos assets en `branding/plymouth/`, script de aplicación: `scripts/level2-03-plymouth-v2.sh` (solo sustituye los dos PNG dentro del tema `solwedos` ya forkeado y regenera initramfs, no vuelve a registrar la alternativa).
+
+2. **El logo se solapaba con la barra de tareas del escritorio.** El reposicionado de la 2.2.0 (90% de la altura) evitaba el panel de GDM pero quedaba demasiado bajo para el escritorio real, donde la barra de tareas (dash-to-panel, abajo) tapaba el texto. Subido al **80% de la altura** en ambos wallpapers — compromiso entre no chocar con el panel de login (centro) y no chocar con la barra de tareas (borde inferior). Reaplicado también el oscurecido de contraste (×0.80) sobre la versión clara tras el reposicionado. Assets actualizados en `branding/wallpapers/`.
+
+**Pendiente de aplicar y confirmar en el Dell** — instrucciones: copiar `branding/wallpapers/*.png` a `custom-root/usr/share/backgrounds/solwed/`, copiar `branding/plymouth/*.png` a `/root/solwed-branding/` dentro del chroot, correr `level2-02-gdm-login.sh` (regenera el gresource de GDM con el wallpaper nuevo) y `level2-03-plymouth-v2.sh` (sustituye watermark/bgrt-fallback), Generate y boot-test.
+
 **Observación sin resolver — cursor de carga (circulito animado junto al puntero):** en Proxmox se ve del amarillo-naranja de acento de Solwed; en el Dell se mantiene azul (color por defecto). El tema de cursores `Fluent-cursors` es único y neutro — no hay variantes de color por accent-color como sí las hay para los iconos (`Fluent-yellow`, `Fluent-orange`, etc.), así que ese circulito no es un cursor XCursor estático sino que lo pinta GNOME Shell/Mutter en tiempo real leyendo `accent-color`.
 
 Hipótesis de sesión Xorg/XWayland **descartada**: `echo $XDG_SESSION_TYPE` da `wayland` en ambos (Dell y Proxmox), 2026-07-08. Nueva hipótesis, sin confirmar: Mutter puede delegar el cursor a un plano de hardware (KMS cursor plane) en GPUs reales (Intel UHD 620 del Latitude) por rendimiento, mientras que en la VM de Proxmox (virtio-gpu/QXL) no hay ese plano y compone el cursor por software — si el indicador de carga se genera como parte de esa imagen compuesta, la ruta por hardware podría no llevar el recoloreado por acento. Sin confirmar sin logs en vivo del Dell (`journalctl -b | grep -i cursor` mientras se abre una app, misma metodología que el bug #4). **Aparcado por baja prioridad/cosmético** — el acento en sí ya funciona correctamente en fondo e iconos.
