@@ -98,4 +98,14 @@ Dos pegas más detectadas tras confirmar la 2.3.0:
    ```
    `anduinos_text_smaller.png` es 300×61, el mismo tamaño que el watermark original de Plymouth (mismo asset reutilizado en dos sitios). Sustituido por el wordmark "Solwed OS" + W. con acento amarillo de la 2.3.0 (`branding/gdm/solwedos-login-logo.png`), y la clave `logo=` actualizada para apuntar ahí. Mismo mecanismo de texto plano, sin chroot necesario.
 
+**Confirmado — el logo del panel de login/bloqueo ya sale bien (2026-07-08). El usuario/hostname del live seguía en AnduinOS pese a haber editado `casper.conf`** — causa encontrada: `/usr/share/initramfs-tools/hooks/casper` copia `/etc/casper.conf` DENTRO del `initrd.gz` en el momento de compilarlo (`cp /etc/casper.conf ${DESTDIR}/etc`); editar el fichero en `custom-root` no sirve de nada si no se regenera el initramfs después — el initrd de la ISO seguía llevando la copia vieja. Mismo tipo de trampa que ya nos pasó con Plymouth. Fix: `update-initramfs -u -k all` dentro del chroot tras el edit (sin volver a tocar `casper.conf`, ya estaba bien).
+
+## Alpha 2.5.0 — apariencia y menú de inicio (en progreso, 2026-07-08)
+
+Tres pegas más:
+
+1. **Live/hostname seguían en anduinos** — ver el bug del initrd de arriba, resuelto con `update-initramfs -u -k all`.
+2. **App "Apariencia de AnduinOS" en el menú de inicio.** Es `anduinos-appearance.desktop` (paquete `anduinos-appearance`, cambia entre layout de barra de tareas estilo 11 y clásico). Cambiado `Name=` y `Name[es_ES]=` a "Solwed OS Appearance"/"Apariencia de SolwedOS" — el `Icon=`, `Exec=` y `StartupWMClass=` internos se dejan intactos (son identificadores del binario, no texto de marca).
+3. **Icono del botón de inicio en la barra de tareas** (el que despliega el menú ArcMenu). En `/etc/dconf/db/anduinos.d/10-arcmenu.conf` las claves `custom-menu-button-icon` y `menu-button-icon` ya apuntan a un fichero configurable: `/usr/share/gnome-shell/extensions/arcmenu@arcmenu.com/icons/anduinos-logo.svg` (96×96). No hace falta tocar dconf — basta con sustituir ese fichero. Construido `branding/panel/anduinos-logo.svg`: un SVG mínimo que envuelve el mismo icono "W." con acento amarillo (el `bgrt-fallback.png` de la 2.3.0) como imagen embebida en base64, para conservar el nombre/formato de archivo que ArcMenu espera sin tener que reconstruir el trazado como vector puro.
+
 **Pendiente de aplicar y confirmar en el Dell.**
