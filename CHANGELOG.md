@@ -109,3 +109,19 @@ Tres pegas más:
 3. **Icono del botón de inicio en la barra de tareas** (el que despliega el menú ArcMenu). En `/etc/dconf/db/anduinos.d/10-arcmenu.conf` las claves `custom-menu-button-icon` y `menu-button-icon` ya apuntan a un fichero configurable: `/usr/share/gnome-shell/extensions/arcmenu@arcmenu.com/icons/anduinos-logo.svg` (96×96). No hace falta tocar dconf — basta con sustituir ese fichero. Construido `branding/panel/anduinos-logo.svg`: un SVG mínimo que envuelve el mismo icono "W." con acento amarillo (el `bgrt-fallback.png` de la 2.3.0) como imagen embebida en base64, para conservar el nombre/formato de archivo que ArcMenu espera sin tener que reconstruir el trazado como vector puro.
 
 **Confirmada en el Dell — 2026-07-08.** Live arranca como `solwed@solwedos`, app "Apariencia de SolwedOS" y el botón de inicio con la W. de acento amarillo, todo correcto. Con esto se cierra del todo el rebranding de identidad/arranque/login (Niveles 1-2 y sus pulidos posteriores).
+
+## Alpha 2.6.0 — azul de fábrica en el tema de cursores (en progreso, 2026-07-08)
+
+Pendiente desde el bug #4/aparcado en la 2.2: el circulito de carga (spinner) y varios cursores más se veían azules en vez de con el acento amarillo. La hipótesis del plano de cursor por hardware (VM vs GPU real) quedó **descartada**: eso solo cambia cómo se compone el cursor, nunca su color — no explica una diferencia de tono.
+
+**Causa real, confirmada abriendo los ficheros Xcursor byte a byte:** el tema de cursores `Fluent-cursors`/`Fluent-dark-cursors` es un binario (formato Xcursor, no CSS ni SVG) con el azul de AnduinOS **incrustado directamente como píxeles** en las insignias de ciertos cursores — `progress`/`watch`/`wait` (spinner de carga), los cursores de redimensionar (`size_hor`, `size_ver`, las esquinas, `sb_h_double_arrow`...), `alias`, `link`, `context-menu`, `all-scroll`, etc. El Nivel 1 solo recoloreó el **tema de iconos** (`Fluent-yellow`, escritorio/apps) — el tema de *cursores* es un asset totalmente distinto que nunca se tocó, así que seguía con el azul de fábrica en cualquier build, VM o hardware real (la comparación Proxmox-amarillo/Dell-azul de la 2.2 no era una pista fiable: eran builds distintas, 1.0.0 vs 2.5.0).
+
+**Fix:** escrito un parser/editor de Xcursor en Python (formato simple: TOC + chunks de imagen ARGB32 crudo) que recorre cada fichero, detecta píxeles con matiz azul (170°-250°) y un rango de color apreciable (para no disparar en el ruido de antialiasing casi-negro de los cursores normales — ese fue el primer intento, con falsos positivos en `default`/`left_ptr`/`text` de unos pocos píxeles cada uno, descartados con un umbral mínimo de 80 píxeles por fichero) y rota el matiz a nuestro amarillo (#F5E70A) conservando saturación/brillo/alpha originales — así se respeta el sombreado y el antialiasing de cada insignia, no es un tinte plano. 56 de los 111 ficheros de cada tema llevaban esta insignia azul; el resto (cursor básico, texto, manita, etc.) no se tocan. Assets en `branding/cursors/{Fluent-cursors,Fluent-dark-cursors}/cursors/`.
+
+**Pendiente de aplicar y confirmar en el Dell** — son solo ficheros binarios en `/usr/share/icons/`, sudo normal desde el host, sin chroot necesario:
+```bash
+sudo cp -r /home/aruizb/SolwedOS/branding/cursors/Fluent-cursors/cursors/. \
+  /home/aruizb/cubic-projects/SolwedOS/custom-root/usr/share/icons/Fluent-cursors/cursors/
+sudo cp -r /home/aruizb/SolwedOS/branding/cursors/Fluent-dark-cursors/cursors/. \
+  /home/aruizb/cubic-projects/SolwedOS/custom-root/usr/share/icons/Fluent-dark-cursors/cursors/
+```
