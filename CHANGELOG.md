@@ -79,7 +79,7 @@ Dos pegas de acabado sobre la 2.2.0:
 
 2. **El logo se solapaba con la barra de tareas del escritorio.** El reposicionado de la 2.2.0 (90% de la altura) evitaba el panel de GDM pero quedaba demasiado bajo para el escritorio real, donde la barra de tareas (dash-to-panel, abajo) tapaba el texto. Subido al **80% de la altura** en ambos wallpapers — compromiso entre no chocar con el panel de login (centro) y no chocar con la barra de tareas (borde inferior). Reaplicado también el oscurecido de contraste (×0.80) sobre la versión clara tras el reposicionado. Assets actualizados en `branding/wallpapers/`.
 
-**Pendiente de aplicar y confirmar en el Dell** — instrucciones: copiar `branding/wallpapers/*.png` a `custom-root/usr/share/backgrounds/solwed/`, copiar `branding/plymouth/*.png` a `/root/solwed-branding/` dentro del chroot, correr `level2-02-gdm-login.sh` (regenera el gresource de GDM con el wallpaper nuevo) y `level2-03-plymouth-v2.sh` (sustituye watermark/bgrt-fallback), Generate y boot-test.
+**Confirmada en el Dell — 2026-07-08.** Wordmark "Solwed OS" + W. con acento amarillo en el splash, y logo del wallpaper ya sin chocar con la barra de tareas ni con el panel de login. Nivel 2 cerrado.
 
 **Observación sin resolver — cursor de carga (circulito animado junto al puntero):** en Proxmox se ve del amarillo-naranja de acento de Solwed; en el Dell se mantiene azul (color por defecto). El tema de cursores `Fluent-cursors` es único y neutro — no hay variantes de color por accent-color como sí las hay para los iconos (`Fluent-yellow`, `Fluent-orange`, etc.), así que ese circulito no es un cursor XCursor estático sino que lo pinta GNOME Shell/Mutter en tiempo real leyendo `accent-color`.
 
