@@ -23,7 +23,7 @@ fi
 
 echo "==> Generando gdm-theme.gresource con el fondo oscuro de Solwed"
 mkdir -p "$OUT_DIR"
-anduinos-gdm-set-wallpaper --wallpaper "$WALLPAPER" --output "$OUT_FILE" --darken
+anduinos-gdm-set-wallpaper --wallpaper "$WALLPAPER" --output "$OUT_FILE"
 
 echo "==> Registrando como alternativa (prioridad 160, por encima del default de AnduinOS=150)"
 update-alternatives --install /usr/share/gnome-shell/gdm-theme.gresource gdm-theme.gresource \
