@@ -84,3 +84,18 @@ Dos pegas de acabado sobre la 2.2.0:
 **Observación sin resolver — cursor de carga (circulito animado junto al puntero):** en Proxmox se ve del amarillo-naranja de acento de Solwed; en el Dell se mantiene azul (color por defecto). El tema de cursores `Fluent-cursors` es único y neutro — no hay variantes de color por accent-color como sí las hay para los iconos (`Fluent-yellow`, `Fluent-orange`, etc.), así que ese circulito no es un cursor XCursor estático sino que lo pinta GNOME Shell/Mutter en tiempo real leyendo `accent-color`.
 
 Hipótesis de sesión Xorg/XWayland **descartada**: `echo $XDG_SESSION_TYPE` da `wayland` en ambos (Dell y Proxmox), 2026-07-08. Nueva hipótesis, sin confirmar: Mutter puede delegar el cursor a un plano de hardware (KMS cursor plane) en GPUs reales (Intel UHD 620 del Latitude) por rendimiento, mientras que en la VM de Proxmox (virtio-gpu/QXL) no hay ese plano y compone el cursor por software — si el indicador de carga se genera como parte de esa imagen compuesta, la ruta por hardware podría no llevar el recoloreado por acento. Sin confirmar sin logs en vivo del Dell (`journalctl -b | grep -i cursor` mientras se abre una app, misma metodología que el bug #4). **Aparcado por baja prioridad/cosmético** — el acento en sí ya funciona correctamente en fondo e iconos.
+
+## Alpha 2.4.0 — usuario live, hostname y logo del panel de login (en progreso, 2026-07-08)
+
+Dos pegas más detectadas tras confirmar la 2.3.0:
+
+1. **Usuario de la sesión live y hostname seguían con marca AnduinOS.** `/etc/casper.conf` tenía `USERNAME="live"` con `USERFULLNAME="AnduinOS Live session user"` y `HOST="anduinos"`/`FLAVOUR="AnduinOS"`. Comprobado en `/usr/share/initramfs-tools/scripts/casper` que el mecanismo de fallback que deriva usuario/host de `.disk/info` solo se activa si `FLAVOUR` está vacío — como aquí siempre está seteado, nuestros valores explícitos si se respetan, así que basta con editarlos directamente. De paso se encontró que el hostname del **sistema instalado** (`/etc/hostname`) también seguía en `anduinos`, un descuido separado del live. Corregido: `USERNAME="solwed"`, `USERFULLNAME="Solwed OS Live session user"`, `HOST="solwedos"`, `FLAVOUR="SolwedOS"`, y `/etc/hostname` → `solwedos`. Son ficheros de texto plano — no hace falta el terminal chroot de Cubic, un `sudo` normal desde el host basta.
+
+2. **El logo "Anduin + ANDUINOS" abajo del panel de login/bloqueo.** No tenía nada que ver con nuestro wallpaper (que ya se ve bien, con "SOLWED.es" arriba) — es un elemento CSS separado (`.login-dialog-logo-bin`) que gnome-shell dibuja usando la clave `org/gnome/login-screen logo`. Encontrada en `/etc/gdm3/greeter.dconf-defaults` (fichero ini simple de Debian/Ubuntu para defaults del greeter, no pasa por el mecanismo de perfiles dconf — no existe `/etc/dconf/profile/gdm` en este sistema):
+   ```
+   [org/gnome/login-screen]
+   logo='/usr/share/pixmaps/anduinos_text_smaller.png'
+   ```
+   `anduinos_text_smaller.png` es 300×61, el mismo tamaño que el watermark original de Plymouth (mismo asset reutilizado en dos sitios). Sustituido por el wordmark "Solwed OS" + W. con acento amarillo de la 2.3.0 (`branding/gdm/solwedos-login-logo.png`), y la clave `logo=` actualizada para apuntar ahí. Mismo mecanismo de texto plano, sin chroot necesario.
+
+**Pendiente de aplicar y confirmar en el Dell.**
