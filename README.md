@@ -10,7 +10,7 @@ Distribución Linux personalizada para clientes de Solwed, construida remasteriz
 - **Nivel 2 (arranque y login):** Plymouth con marca Solwed, fondo y logo de GDM, usuario/hostname live, iconos de ArcMenu/apariencia rebrandeados, teclado español, tema de GNOME Shell y GTK en amarillo de acento, slideshow del instalador (Ubiquity) reescrito en los 27 idiomas soportados.
 - **Nivel 3 (comportamiento y apps), arrancado:** LibreOffice y Thunderbird preinstalados (Thunderbird vía el PPA de mozillateam, paquete `.deb` real, no snap), plugin de WhatsApp Web preinstalado en Thunderbird, carpeta "LibreOffice" y Thunderbird anclados en el menú de inicio (ArcMenu), instalador gráfico de FacturaScripts bajo demanda (icono de escritorio, `zenity` + `pkexec`).
 
-Ver [`CHANGELOG.md`](CHANGELOG.md) para el detalle de cada cambio y los bugs encontrados/resueltos durante el proceso (nota: a fecha de este README el changelog cubre hasta el cierre del Nivel 2 — el trabajo de Nivel 3 aún no se ha volcado ahí).
+Ver [`CHANGELOG.md`](CHANGELOG.md) para el detalle de cada cambio y los bugs encontrados/resueltos durante el proceso.
 
 ## Estructura del repo
 
