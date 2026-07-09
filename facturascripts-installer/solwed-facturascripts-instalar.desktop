@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Instalar FacturaScripts
+Name[es]=Instalar FacturaScripts
+Comment=Instala FacturaScripts (facturación y contabilidad) en este equipo
+Comment[es]=Instala FacturaScripts (facturación y contabilidad) en este equipo
+Exec=/opt/solwed/install-facturascripts.sh
+Icon=system-software-install
+Terminal=false
+Categories=Office;Finance;
