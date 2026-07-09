@@ -4,13 +4,13 @@ Distribución Linux personalizada para clientes de Solwed, construida remasteriz
 
 ## Estado actual
 
-**Nivel 1 (identidad visual) completo y validado en hardware real** (Dell Latitude 5490):
+**Alpha 3.1.1 — Niveles 1 y 2 completos y validados en hardware real** (Dell Latitude 5490), **Nivel 3 en marcha:**
 
-- Identidad del sistema (`/etc/os-release`, `/etc/lsb-release`) con URLs de soporte propias.
-- Fondo de pantalla y bloqueo de marca Solwed.
-- Icono, cursor y color de acento personalizados (`Fluent-round-yellow`).
+- **Nivel 1 (identidad visual):** identidad del sistema (`/etc/os-release`, `/etc/lsb-release`) con URLs de soporte propias, fondo de pantalla y bloqueo de marca Solwed, icono/cursor/color de acento personalizados (`Fluent-round-yellow`).
+- **Nivel 2 (arranque y login):** Plymouth con marca Solwed, fondo y logo de GDM, usuario/hostname live, iconos de ArcMenu/apariencia rebrandeados, teclado español, tema de GNOME Shell y GTK en amarillo de acento, slideshow del instalador (Ubiquity) reescrito en los 27 idiomas soportados.
+- **Nivel 3 (comportamiento y apps), arrancado:** LibreOffice y Thunderbird preinstalados (Thunderbird vía el PPA de mozillateam, paquete `.deb` real, no snap), plugin de WhatsApp Web preinstalado en Thunderbird, carpeta "LibreOffice" y Thunderbird anclados en el menú de inicio (ArcMenu), instalador gráfico de FacturaScripts bajo demanda (icono de escritorio, `zenity` + `pkexec`).
 
-Ver [`CHANGELOG.md`](CHANGELOG.md) para el detalle de cada cambio y los bugs encontrados/resueltos durante el proceso.
+Ver [`CHANGELOG.md`](CHANGELOG.md) para el detalle de cada cambio y los bugs encontrados/resueltos durante el proceso (nota: a fecha de este README el changelog cubre hasta el cierre del Nivel 2 — el trabajo de Nivel 3 aún no se ha volcado ahí).
 
 ## Estructura del repo
 
@@ -18,7 +18,12 @@ Ver [`CHANGELOG.md`](CHANGELOG.md) para el detalle de cada cambio y los bugs enc
 - `CLAUDE.md` — guía de trabajo destilada del manual, con las correcciones verificadas contra AnduinOS real.
 - `ANDUIN-BASELINE.md` — hechos verificados directamente sobre una ISO limpia de AnduinOS 2.0.0 (dónde vive cada cosa, qué asume mal el manual original).
 - `CHANGELOG.md` — registro de qué se aplicó en el chroot de Cubic en cada sesión, y por qué.
-- `imagenes_Solwed/` — assets de marca (wallpapers, logo).
+- `branding/` — assets de marca aplicados al sistema (Plymouth, GDM, cursores, panel).
+- `imagenes_Solwed/` — assets de marca originales (wallpapers, logo fuente).
+- `slideshow-fix/` — slideshow del instalador (Ubiquity) reescrito, en staging para hornear en `custom-root` (27 idiomas + fallback en inglés).
+- `thunderbird-addons/` — extensiones de Thunderbird preinstaladas (`.xpi`), pensadas para sideload vía `distribution/extensions/`.
+- `facturascripts-installer/` — instalador gráfico bajo demanda de FacturaScripts (lanzador sin privilegios + worker root vía `pkexec`, separados porque esta ISO es Wayland puro).
+- `scripts/` — scripts de aplicación de marca, pensados para copiarse y ejecutarse dentro del chroot de Cubic.
 - `Capturas Errores/` — capturas de pantalla y salidas de terminal recogidas durante la depuración.
 - `reference/` — ISO limpia de AnduinOS extraída, usada como referencia para verificar comportamiento de fábrica (gitignored, se regenera localmente).
 
