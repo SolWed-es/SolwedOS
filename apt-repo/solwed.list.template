@@ -1,0 +1,5 @@
+# Plantilla — NO activar hasta desplegar el repo real en repo.solwed.es
+# Copiar a /etc/apt/sources.list.d/solwed.list (sin el .template) solo
+# cuando el servidor aptly esté publicando de verdad, o "apt update"
+# fallará en cada equipo que ya tenga esto habilitado.
+deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg] https://repo.solwed.es/apt resolute main

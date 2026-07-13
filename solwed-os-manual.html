@@ -428,7 +428,7 @@
         <span class="meta-chip">Herramienta: Cubic</span>
         <span class="meta-chip">Base: AnduinOS 2.0.0 (Ubuntu 26.04 "resolute")</span>
         <span class="meta-chip">Fase: alpha — baseline Alpha 4.0.0</span>
-        <span class="meta-chip">4 niveles · Nivel 1-3 cerrados · Nivel 4 en progreso (soporte remoto)</span>
+        <span class="meta-chip">4 niveles · Nivel 1-3 cerrados · Nivel 4 en progreso (soporte remoto + repo APT)</span>
       </div>
     </div>
   </header>
@@ -817,18 +817,40 @@ sources=[('xkb', 'es+winkeys')]</code></pre>
         <p class="level-sub">Esto ya es infraestructura y producto propio, no solo configuración de la ISO — resérvalo para cuando el alpha esté estable.</p>
 
         <article class="card" id="item-repo">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge todo">○ Pendiente</span></div>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge partial">◐ En progreso — Alpha 4.0</span></div>
           <h3 class="card-title">Repositorio APT propio</h3>
-          <p class="card-why">Poder empujar actualizaciones y herramientas de Solwed a los equipos ya instalados, sin reconstruir la ISO cada vez.</p>
+          <p class="card-why">Poder empujar actualizaciones y herramientas de Solwed a los equipos ya instalados, sin reconstruir la ISO cada vez. Herramienta elegida: <strong>aptly</strong> (más simple de operar en solitario que <code>reprepro</code>, buena gestión de snapshots para publicar sin downtime).</p>
+          <div class="files">
+            <span class="file-chip">apt-repo/solwed.gpg</span>
+            <span class="file-chip">apt-repo/solwed-repo-signing-key.asc</span>
+            <span class="file-chip">apt-repo/solwed.list.template</span>
+          </div>
           <ol class="steps">
-            <li><p>Monta el repositorio en un servidor de Solwed con <code>aptly</code> o <code>reprepro</code> (p. ej. accesible en <code>repo.solwed.es</code>).</p></li>
-            <li><p>Fírmalo con una clave GPG propia dedicada a esto (no reutilices una clave personal).</p></li>
-            <li><p>Dentro de la ISO, preinstala el fichero de fuente y la clave pública para que el repo ya venga dado de alta:</p>
-              <pre><code>/etc/apt/sources.list.d/solwed.list
-/etc/apt/trusted.gpg.d/solwed.gpg</code></pre>
+            <li><p><strong>Clave GPG dedicada generada (hecho).</strong> RSA 4096, caduca a los 2 años (rotación forzada por diseño, no queda como "para siempre y se olvida"). <strong>La privada nunca se ha guardado en este repo ni se imprime en ningún sitio compartido</strong> — solo vive donde Solwed la haya puesto a salvo (gestor de contraseñas/USB cifrado). Aquí solo se versiona la <em>pública</em>, tanto en formato legible (<code>.asc</code>) como en el binario dearmored que espera <code>/etc/apt/trusted.gpg.d/</code> (<code>.gpg</code>).</p></li>
+            <li><p><strong>Clave pública ya preinstalada en la imagen (hecho)</strong> — segura de dejar activa aunque el repo no exista todavía, una clave de confianza sin ningún <code>sources.list</code> que la use no hace nada:</p>
+              <pre><code>cp apt-repo/solwed.gpg /etc/apt/trusted.gpg.d/solwed.gpg</code></pre>
+            </li>
+            <li><p><strong>El <code>sources.list</code> NO está activado todavía, a propósito.</strong> A diferencia de la clave, un fichero en <code>/etc/apt/sources.list.d/</code> se consulta activamente en cada <code>apt update</code> — dejarlo apuntando a un dominio que no responde da un error visible cada vez, en cualquier build de prueba. Se queda como plantilla sin activar hasta tener servidor real:</p>
+              <pre><code><span class="cmt"># apt-repo/solwed.list.template — activar solo cuando repo.solwed.es sirva de verdad</span>
+deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg] https://repo.solwed.es/apt resolute main</code></pre>
+            </li>
+            <li><p><strong>Pendiente — montaje del servidor</strong> (no forma parte de este repo de Cubic, es infraestructura aparte):</p>
+              <pre><code>apt-get install aptly gnupg nginx
+gpg --import solwed-repo-signing-key-PRIVATE.asc   <span class="cmt"># solo en el servidor, jamás en la imagen</span>
+
+aptly repo create -distribution=resolute -component=main solwed
+aptly repo add solwed paquete.deb
+aptly snapshot create solwed-$(date +%Y%m%d) from repo solwed
+aptly publish snapshot -gpg-key=repo@solwed.es solwed-$(date +%Y%m%d)
+<span class="cmt"># sirve ~/.aptly/public/ en https://repo.solwed.es/apt vía nginx</span>
+
+<span class="cmt"># para publicar una actualización más adelante, sin downtime:</span>
+aptly repo add solwed nuevo-paquete.deb
+aptly snapshot create solwed-$(date +%Y%m%d)-2 from repo solwed
+aptly publish switch resolute solwed-$(date +%Y%m%d)-2</code></pre>
             </li>
           </ol>
-          <div class="aviso"><strong>Aviso:</strong> esto introduce gestión de claves y un servicio nuevo que mantener. Documenta el proceso de rotación de la clave GPG antes de depender de esto en producción.</div>
+          <div class="aviso"><strong>Lección ya aplicada de la clave privada:</strong> se generó y por accidente se imprimió una vez en un canal compartido antes de guardarla — como aún no había firmado nada real, se revocó por decisión y se regeneró desde cero en vez de arriesgarse a seguir usando una clave que pudiera estar expuesta. Norma para el futuro: cualquier secreto de este tipo se entrega como ruta de archivo en la propia máquina del usuario, nunca pegado en el chat.</div>
         </article>
 
         <article class="card" id="item-wizard">
