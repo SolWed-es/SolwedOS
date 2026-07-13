@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Solwed Autofirma Certificate Trust
+Exec=/usr/lib/solwed/trust-autofirma-cert.sh
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
