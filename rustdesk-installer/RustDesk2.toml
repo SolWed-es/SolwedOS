@@ -1,0 +1,7 @@
+rendezvous_server = ''
+
+[options]
+custom-rendezvous-server = 'remoto.solwed.es'
+relay-server = 'remoto.solwed.es'
+api-server = 'https://remoto.solwed.es'
+key = ''

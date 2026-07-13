@@ -427,8 +427,8 @@
       <div class="meta-row">
         <span class="meta-chip">Herramienta: Cubic</span>
         <span class="meta-chip">Base: AnduinOS 2.0.0 (Ubuntu 26.04 "resolute")</span>
-        <span class="meta-chip">Fase: alpha — baseline Alpha 3.3.x</span>
-        <span class="meta-chip">4 niveles · Nivel 1-3 aplicados y probados en hardware real</span>
+        <span class="meta-chip">Fase: alpha — baseline Alpha 4.0.0</span>
+        <span class="meta-chip">4 niveles · Nivel 1-3 cerrados · Nivel 4 en progreso (soporte remoto)</span>
       </div>
     </div>
   </header>
@@ -843,18 +843,28 @@ sources=[('xkb', 'es+winkeys')]</code></pre>
         </article>
 
         <article class="card" id="item-support">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge todo">○ Pendiente</span></div>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge partial">◐ En progreso — Alpha 4.0</span></div>
           <h3 class="card-title">Soporte remoto preconfigurado</h3>
-          <p class="card-why">Que vuestro equipo pueda asistir a un cliente sin que tenga que instalar nada primero.</p>
-          <p class="card-why"><strong>No confundir con Remmina</strong> (Nivel 3, ya probado y retirado): Remmina es un cliente RDP/VNC para que el <em>usuario</em> se conecte él mismo hacia fuera, en la dirección opuesta a lo que describe este punto — un agente para que <em>Solwed</em> entre al equipo del cliente, tipo TeamViewer/AnyDesk/RustDesk.</p>
+          <p class="card-why">Que vuestro equipo pueda asistir a un cliente sin que tenga que instalar nada primero. Decisión tomada: <strong>RustDesk autoalojado</strong> (open source, cliente ya hecho y rebrandeable, sin coste de licencia) en vez de un agente 100% propio.</p>
+          <p class="card-why"><strong>No confundir con Remmina</strong> (Nivel 3, ya probado y retirado): Remmina es un cliente RDP/VNC para que el <em>usuario</em> se conecte él mismo hacia fuera, en la dirección opuesta a lo que describe este punto — un agente para que <em>Solwed</em> entre al equipo del cliente.</p>
+          <div class="files">
+            <span class="file-chip">rustdesk-installer/rustdesk-1.4.9-x86_64.deb</span>
+            <span class="file-chip">/etc/skel/.config/RustDesk/RustDesk2.toml</span>
+          </div>
           <ol class="steps">
-            <li><p>Preinstala el cliente de soporte remoto (agente propio, o algo tipo RustDesk servido desde vuestro repo del punto anterior) con su configuración apuntando ya al servidor de Solwed en <code>/etc/solwed/remote-support.conf</code>.</p></li>
-            <li><p>Registra el servicio pero <strong>no lo actives por defecto</strong>:</p>
-              <pre><code>systemctl enable solwed-agent.service
-<span class="cmt"># no ejecutar systemctl start — que lo active el cliente</span></code></pre>
+            <li><p><strong>Cliente instalado y preconfigurado (hecho).</strong> Paquete oficial <code>.deb</code> de RustDesk 1.4.9, sin recompilar nada. El servidor propio (<code>rendezvous_server</code> vía la opción <code>custom-rendezvous-server</code>, más <code>relay-server</code>/<code>api-server</code>/<code>key</code>) se preconfigura en texto plano en <code>~/.config/RustDesk/RustDesk2.toml</code> — confirmado leyendo el código fuente de <code>hbb_common</code>, no por prueba y error. Dejado en <code>/etc/skel/</code> para que lo hereden tanto el usuario live (casper regenera su home desde <code>skel</code> en cada arranque) como cualquier cuenta nueva tras instalar:</p>
+              <pre><code>rendezvous_server = ''
+
+[options]
+custom-rendezvous-server = 'remoto.solwed.es'   <span class="cmt"># placeholder, sin servidor real todavía</span>
+relay-server = 'remoto.solwed.es'
+api-server = 'https://remoto.solwed.es'
+key = ''                                        <span class="cmt"># clave pública que genera hbbs al arrancar</span></code></pre>
             </li>
+            <li><p><strong>Bug del propio paquete, ya neutralizado:</strong> el <code>postinst</code> de RustDesk hace <code>systemctl enable rustdesk; systemctl start rustdesk</code> incondicionalmente al instalar — es el servicio <code>rustdesk --service</code> (acceso <em>desatendido</em>, sin presencia del usuario, con contraseña permanente, corriendo como root), exactamente lo que este punto del manual pide no activar por defecto. En este chroot ese bloque no llegó a ejecutarse (confirmado: no existe <code>rustdesk.service</code> en ningún <code>systemd/</code> del árbol salvo la plantilla original del paquete), así que el estado actual ya cumple el requisito — pero <strong>verifica siempre con <code>systemctl status rustdesk</code> tras arrancar la ISO real</strong> antes de confiar en que se mantiene así; este proyecto ya ha visto más de un caso de "en el chroot parece una cosa, en el sistema arrancado de verdad es otra" (ver <a href="#bugs-conocidos">Bugs conocidos</a>).</p></li>
+            <li><p><strong>Pendiente, fuera del alcance de esta fase:</strong> montar <code>hbbs</code>+<code>hbbr</code> (servidor rendezvous+relay) en infraestructura de Solwed, sustituir <code>remoto.solwed.es</code> por el dominio real, y rellenar <code>key</code> con la clave pública que genera <code>hbbs</code>. Sin esto el cliente está instalado pero no tiene a dónde conectar.</p></li>
           </ol>
-          <div class="aviso"><strong>Aviso:</strong> dejar un agente de acceso remoto activo sin consentimiento explícito del cliente es un problema de privacidad y de confianza, no solo técnico. Que quede instalado y listo, pero apagado hasta que el usuario decida activarlo.</div>
+          <div class="aviso"><strong>El flujo de consentimiento normal (el que ya funciona sin tocar nada más):</strong> el cliente abre la app RustDesk normal, ve su ID + una contraseña de un solo uso, y se la lee al soporte de Solwed — quien la usa para conectar. La conexión pide confirmación en pantalla al cliente. Esto <strong>no depende del servicio de acceso desatendido</strong> para nada; ese servicio es una función aparte, de más riesgo de privacidad, pensada para cuando el cliente decida explícitamente dejar acceso permanente sin tener que estar delante cada vez — decisión de negocio aún no tomada, no actives ese servicio hasta que se decida.</div>
         </article>
       </section>
 
