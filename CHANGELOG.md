@@ -192,3 +192,110 @@ Primer paso del Nivel 3 (comportamiento y apps).
    **Fix — patrón general para cualquier instalador `pkexec`+GUI en esta ISO:** separar en dos scripts. `install-facturascripts.sh` (el `Exec=` del `.desktop`, sin `pkexec`) corre como el usuario normal y es dueño de todos los `zenity`; solo eleva el trabajo real con `pkexec /opt/solwed/install-facturascripts-worker.sh | zenity --progress ...` — en una tubería, solo el comando de la izquierda se eleva, el `zenity` de la derecha sigue siendo un proceso normal de la sesión del usuario. El worker no llama a ningún GUI, solo emite el protocolo de `zenity --progress` (`echo "N"` / `echo "# mensaje"`) y manda la salida ruidosa de cada comando (`apt-get`, `mysql`...) a un log aparte. **Confirmado en la Dell — 2026-07-09**, ya se ve la barra de progreso y termina la instalación.
 
 2. **Aviso "Módulo de Apache no encontrado: mod_rewrite" al abrir FacturaScripts.** Real, no cosmético — rompe las URLs limpias de FacturaScripts. Causa: el propio paquete `apache2` arranca el servicio solo nada más instalarse (comportamiento estándar de Debian), antes de que el worker llegue a `a2enmod rewrite` — que solo crea un symlink en disco, no recarga Apache. El `systemctl enable --now apache2` posterior no hacía nada porque el servicio ya estaba activo (`--now` no reinicia un servicio ya en marcha). Fix: `systemctl enable apache2` + `systemctl restart apache2` incondicional justo después de `a2enmod`. Aplicado al worker y confirmado con un `systemctl restart apache2` manual en la instalación ya existente — **pendiente de confirmar con una instalación limpia desde cero** en la próxima ISO generada.
+
+## Alpha 3.1.2 — LibreOffice se cerraba solo al segundo de abrir, instalado (2026-07-10)
+
+Bug #5, misma clase que el de Alpha 2.2.0 (bwrap) pero causa distinta. Solo en sistema instalado, no en live. LibreOffice Writer mostraba el splash y se cerraba solo ~1s después, sin ventana, sin error.
+
+Descartado en orden: el perfil AppArmor propio de `libreoffice-soffice.bin` (desactivado del todo, sin cambio); el tema de iconos `Fluent-yellow-dark` (probado con Adwaita, mismo fallo); el plugin VCL de GTK4 (forzado `SAL_USE_VCLPLUGIN=gtk3`, mismo fallo — prueba de que el fallo está por debajo de la capa de toolkit, en el pipeline de decodificación de imagen en sandbox de glycin que usa cualquier app GTK); versiones/librerías de `glycin-loaders` (todo resuelto limpio con `ldd`).
+
+**Causa real:** `/usr/bin/bwrap` (el mismo wrapper del bug de Alpha 2.2.0, del paquete `anduinos-bwrap-hack`) es un script de shell, no un `exec` directo del binario real. El cargador de SVG en sandbox de glycin se invoca con file descriptors concretos (`--seccomp <fd>`, `--dbus-fd <fd>`) que el proceso llamador espera que lleguen intactos al hijo — la capa extra de `fork+wait` del wrapper no los conserva, así que el cargador muere en ~10ms sin llegar a su propio código, y el wrapper enmascara el fallo real (`2>/dev/null || true`). Confirmado con `RUST_LOG=debug soffice --writer` (glycin trae logging real) y ejecutando `bwrap.real` directamente sin el wrapper, que sí dio un error específico y correcto.
+
+**Fix:** sustituir el cuerpo del wrapper por un `exec` directo, sin fork intermedio:
+```
+#!/bin/sh
+exec /usr/bin/bwrap.real "$@"
+```
+Script en `scripts/fix-bwrap-wrapper.sh`. **Confirmado en live y en instalado** — a diferencia del bug de AppArmor (que solo se manifestaba instalado), aquí se verificó explícitamente en los dos casos antes de cerrar, por precaución.
+
+**Incidente durante el diagnóstico, aparte:** una edición en caliente escribió por error sobre `/usr/bin/bwrap` real (en vez de `bwrap.real`) un script que se auto-referenciaba, causando un bucle infinito de `exec` que colgaba toda la sesión gráfica tras reiniciar (parecía "no arranca", en realidad GDM/glycin colgado, no un fallo de kernel/arranque). Sin backup del binario ELF real a mano, se optó por reinstalar la ISO limpia en el Dell en vez de perseguir una recuperación in-situ — la máquina de pruebas no guarda nada único y el build en sí nunca se vio afectado (la corrupción fue en el sistema instalado, no en el chroot). Lección: al editar scripts críticos del sistema en caliente, escribir siempre a un archivo temporal + `mv` atómico, y verificar la ruta destino dos veces antes de ejecutar.
+
+## Locale, teclado y navegador — confirmado sin diagnosticar en sesión (2026-07-10)
+
+El usuario confirma que locale/teclado/zona horaria ya funcionan bien (aplicado en una sesión anterior no capturada aquí en detalle). El plan de navegador cambia respecto al manual original: en vez de mantener el Firefox propio de AnduinOS con `policies.json`, **se desinstala Firefox por completo y se instala Brave**. Sin detalles capturados todavía de configuración de Brave (homepage/marcadores) — pendiente si se retoma.
+
+## ArcMenu — pin de Firefox obsoleto tras pasar a Brave (2026-07-10)
+
+El cambio de navegador dejó la barra de tareas actualizada (`favorite-apps` en `99-anduinos-defaults.gschema.override` ya tenía `brave-browser.desktop`), pero el **pin del menú de inicio** (`pinned-apps` en `10-arcmenu.conf`) seguía apuntando a `firefox.desktop`, que ya no existe. Confirmado que el id correcto es `brave-browser.desktop` (no `com.brave.Browser.desktop`, que tiene `NoDisplay=true`, un duplicado de emparejamiento de portal). Corregido con `sed` + `dconf update`.
+
+**Lección general:** cualquier app sustituida/quitada necesita un `grep` sobre **todos** los `.conf` de `anduinos.d/` — los pines pueden vivir en más de un sitio (favoritos de barra, pines de menú, carpetas de ArcMenu) y solo se actualiza el que alguien recuerda tocar.
+
+## FacturaScripts — confirmado extremo a extremo, incluida la entrega de credenciales (2026-07-10)
+
+El worker (`facturascripts-installer/install-facturascripts-worker.sh`) crea una base de datos MySQL (`facturascripts_db`, usuario `facturascripts`, contraseña aleatoria de 20 caracteres) y la deja en `~/Desktop/FacturaScripts-datos-acceso.txt` (permisos 600) para pegar en el asistente de primer arranque de FacturaScripts. El asistente pide además unas credenciales de "Administrador" separadas (el login de la propia app) que el script no genera — las elige el cliente libremente en ese paso.
+
+## Nivel 3 — Autofirma, Okular, Remmina (2026-07-10)
+
+- **Remmina** ya estaba instalado de fábrica (`remmina`, `remmina-plugin-rdp`, `remmina-plugin-vnc`...) — solo verificado, sin acción. *(Nota: se probó y se retiró más adelante, ver la entrada de Alpha 4.0.0 más abajo.)*
+- **Okular** — `apt-get install okular`, elegido sobre Xournal++ (solo anotación) y Master PDF Editor (de pago) por su soporte nativo de firma digital, buen acompañamiento de Autofirma.
+- **Autofirma 1.9** (firma electrónica española, `.deb` en `autofirma-installer/`) — instalado con `dpkg -i` + `apt-get install -f` (deps `openjdk-11-jre`, `libnss3-tools`).
+  - **Bug encontrado — confianza de certificado no llega a Chromium/Brave.** El instalador de Autofirma solo registra su certificado raíz en el almacén de confianza del **sistema** (`/etc/ssl/certs`) y en el perfil NSS de Firefox (que ni siquiera existe en build). Chromium/Brave usa su propio Chrome Root Store, no el almacén del sistema — la confianza local debe ir a la base NSS por usuario. Fix: script de primer login `trust-autofirma-cert.sh` (mismo patrón que `trust-desktop-shortcuts.sh`) que puebla el certificado en las dos rutas NSS posibles por usuario (`~/.pki/nssdb` y `~/.local/share/pki/nssdb`, según versión de Brave), idempotente vía `certutil -L` antes de `-A`.
+
+## Curación de paneles, ronda 2 (2026-07-10)
+
+Thunderbird movido del pin de menú de inicio al favorito de la barra de tareas (a la izquierda de Brave); Remmina/Okular/Autofirma añadidos al menú de inicio. IDs `.desktop` reales verificados uno a uno contra variantes decoy (`org.remmina.Remmina.desktop`, no `org.remmina.Remmina-file.desktop`; `org.kde.okular.desktop`, no los `okularApplication_*` por tipo de archivo; `afirma.desktop`, todo en minúsculas pese a que la app se llama "Autofirma"). Favoritos de barra vía gschema override (`glib-compile-schemas`); pines de menú vía dconf (`dconf update`) — dos mecanismos distintos, no confundir.
+
+## Recoloreo de iconos de apps, azul→amarillo (2026-07-10)
+
+El tema `Fluent-yellow`/`Fluent-yellow-dark` solo recolorea un subconjunto genérico (carpetas/chrome) — varios iconos de apps individuales traen su azul fijo dentro del propio SVG. Script `scripts/recolor_svg_icons.py` (sustitución de hex por regex + rotación de matiz) aplicado a Software, Loupe, Text Editor, Geary, Calendar, Amberol, Apariencia (Solwed), Characters, config de red, e icono del instalador de FacturaScripts. Requiere `gtk-update-icon-cache -f -t <tema>` después — la caché binaria del tema no se invalida sola.
+
+**Ronda 2 — gap real encontrado (2026-07-10, tras boot-test de Alpha 3.2.0):** el icono de Software/FacturaScripts (mismo archivo, `org.gnome.Software.svg` == `system-software-install.svg`) quedó "medio arreglado" — asa amarilla, cuerpo de la bolsa azul. Causa: ese SVG no es vector puro, embebe un **PNG en base64** para el cuerpo de la bolsa; el script de sustitución de hex solo tocó los trazos vectoriales. Terminal Ptyxis tampoco estaba en el lote original (no un bug, solo fuera de alcance la primera vez). Ambos corregidos: Ptyxis con el mismo script; el icono de Software/FacturaScripts con uno nuevo (`scripts/fix_software_bag_icon.py`) que revierte los 3 trazos vectoriales a su azul original (era un intercambio de dos tonos deliberado, no "todo amarillo") y recolorea el PNG embebido por separado. **Lección: comprobar `base64` en cualquier SVG de este set antes de fiarse de un fix por sustitución de hex.**
+
+## Alpha 3.2.0 — confirmada en el Dell (2026-07-10)
+
+Primer build que agrupa todo lo de arriba desde 3.1.2: fix del pin de Brave, Autofirma+cert-trust, Okular, Remmina, Thunderbird movido a favorito, recoloreo de 10 iconos. Usuario: "funciona a la perfección".
+
+## Logo "W." de dos tonos mal coloreado + wallpapers nuevos — encontrado, parcialmente aplicado (2026-07-10)
+
+Wallpapers nuevos de mayor resolución (`Fondo_SolwedOS_Claro/Oscuro.png`, artwork más profesional aportada por el usuario) sustituidos sin tocar configuración (mismos nombres de archivo fijos) — **aplicado y confirmado**.
+
+La marca "W." (dos V superpuestas — izquierda amarilla sólida, derecha blanca sólida, más un punto) estaba mal en el watermark de Plymouth y el icono del ArcMenu: las dos piernas "internas" (las más cercanas al cruce) tenían el color de la V contraria. Script `scripts/fix_w_logo_colors.py` (primera versión, heurística por tamaño de mancha conectada) escrito y validado sobre copias — **el primer intento de aplicarlo al chroot no surtió efecto** (mtimes sin cambiar), aparcado para la sesión siguiente. *(La causa real de por qué no aplicó nunca se determinó; y cuando sí se aplicó más tarde, resultó que el propio algoritmo también tenía un fallo — ver la entrada de Alpha 4.0.0 más abajo para el arreglo definitivo.)*
+
+## Alpha 3.2.1 — confirmada en el Dell (2026-07-10)
+
+Corrige lo que a 3.2.0 le faltó del recoloreo de iconos: Ptyxis y el icono de Software/FacturaScripts (bug del PNG embebido). Usuario: "está genial". Baseline vigente hasta el commit del repo del 13 de julio.
+
+## Repo committed — 2026-07-13, commit `c79877d`
+
+Puesta al día del repositorio de Git tras varias sesiones de trabajo sin comittear: Autofirma/Okular/Remmina, curación de paneles ronda 2, recoloreo de iconos (rondas 1 y 2), el intento fallido del logo W., y los wallpapers nuevos. Excluido `autofirma-installer/Autofirma_Linux_Debian.zip` (64MB) del control de versiones — es el mismo `.deb` ya versionado sin extraer del zip, duplicarlo no aporta nada.
+
+## Logo "W." — arreglado de verdad, commit `9dec73a` (2026-07-13)
+
+El intento de Alpha 3.2.0 se reintentó y esta vez sí se aplicó a los archivos reales — pero comparando contra una captura de referencia real aportada por el usuario (`imagenes_Solwed/Logo_Solwed.PNG`), resultó que el propio algoritmo de la primera versión del script tenía un fallo estructural: dejaba 3 de los 4 trazos en amarillo cuando debían alternar Y-W-Y-W entre las dos V. La heurística de "mancha más grande = ancla, manchas de color contrario que la tocan cambian de color" no era lo bastante fiable para separar las dos V.
+
+**Reescrito `fix_w_logo_colors.py` de raíz** para usar la captura de referencia como fuente de verdad en vez de adivinar estructura: clasifica la referencia en un campo continuo de amarillez, recorta el sub-área de la marca en el asset roto (saltándose cualquier texto tipo "Solwed OS" a su izquierda, detectando el hueco de columnas vacías **más a la derecha**, no el más ancho — el espaciado entre palabras del propio texto puede ser más ancho que el hueco real texto→marca), y remapea cada píxel del asset roto por posición normalizada contra la referencia.
+
+Verificación completa antes de cerrar: mtimes/tamaños de archivo, comparación de secuencia de color fila a fila contra la referencia (alternancia Y-W-Y-W confirmada, no solo conteo de manchas — el primer intento fallido había "pasado" esa comprobación más superficial), render visual lado a lado, y tras que el usuario ejecutara `update-initramfs -u -k all`, extracción del `initrd.img` regenerado y comparación byte a byte del `watermark.png` embebido contra el del chroot.
+
+## Timeshift añadido y anclado al menú (2026-07-13)
+
+`apt-get install -y timeshift`, sin configuración adicional. Anclado al menú de inicio (`pinned-apps` en `10-arcmenu.conf`), verificado por timestamp de recompilación de dconf y `strings` sobre la base binaria compilada.
+
+## Remmina instalado y retirado — corrección de alcance (2026-07-13)
+
+Al plantear mover "software RDP" del Nivel 4 al Nivel 3 porque "ya teníamos Remmina instalado", se aclaró que son dos cosas distintas: Remmina es un cliente para que el **usuario** se conecte él mismo hacia fuera por RDP/VNC; el punto de Nivel 4 "Soporte remoto preconfigurado" es la dirección contraria — un agente para que **Solwed** entre al equipo del cliente (tipo TeamViewer/AnyDesk). Una vez aclarado, se decidió que Remmina no aportaba valor por sí solo y se retiró por completo: `apt-get purge -y remmina remmina-common remmina-plugin-rdp remmina-plugin-secret remmina-plugin-vnc`, desanclado de `10-arcmenu.conf`, verificado sin rastro ni en `dpkg` ni en la base dconf compilada.
+
+## Manual reescrito al estado real del proyecto — commit `df52a43` (2026-07-13)
+
+`solwed-os-manual.html` seguía siendo el plan especulativo original, con varios datos ya superados por `ANDUIN-BASELINE.md` (LightDM mencionado pero solo existe GDM3, dconf en `local.d` en vez de `anduinos.d`, `VERSION_CODENAME=noble` en vez de `resolute`, `ID_LIKE=ubuntu` en vez de `debian`, base de Plymouth `spinner` en vez de `anduinos`) y sin documentar nada de lo realmente aplicado. Reescrito nivel a nivel con insignias de estado (✓ Hecho / ↻ Cambiado / ○ Pendiente), tarjetas nuevas para trabajo no contemplado en el plan original (caso de estudio del logo W., patrón pkexec+Wayland para instaladores propios, mecanismo real de ArcMenu, confianza de iconos de escritorio), y una sección nueva "Bugs conocidos de la plataforma" documentando los tres bugs recurrentes con causa raíz y fix (EFI grub.cfg, AppArmor bwrap-userns-restrict, wrapper de bwrap). Verificado con un chequeo de balance de etiquetas HTML y auditoría de enlaces internos rotos antes de comittear, no solo una vista previa visual.
+
+## Alpha 4.0.0 — arranca el Nivel 4: soporte remoto con RustDesk — commit `9527cb3` (2026-07-13)
+
+Primer punto del Nivel 4, elegido por ser el de más impacto de cara al cliente y menos dependiente de los otros dos (repo APT propio, asistente de bienvenida). Decisión: **RustDesk autoalojado** en vez de un agente 100% propio (open source, cliente ya hecho y rebrandeable, sin coste de licencia). Alcance de esta ronda: **solo el lado cliente** — sin servidor (`hbbs`/`hbbr`) todavía, explícitamente aplazado.
+
+- Instalado el `.deb` oficial de RustDesk 1.4.9 (`rustdesk-installer/`), sin recompilar nada.
+- **Mecanismo de preconfiguración verificado contra el código fuente real** (`hbb_common`, no la especulación de la GUI): `~/.config/RustDesk/RustDesk2.toml`, con `rendezvous_server` como string de nivel superior más una tabla `[options]` con `custom-rendezvous-server`, `relay-server`, `api-server`, `key` — nombres de constante confirmados en el propio código (`OPTION_CUSTOM_RENDEZVOUS_SERVER` etc.), `custom-rendezvous-server` con prioridad sobre `rendezvous_server` en la resolución. Plantilla en `rustdesk-installer/RustDesk2.toml`, apuntando a un dominio placeholder (`remoto.solwed.es`, no existe todavía) hasta desplegar el servidor real. Depositada en `/etc/skel/.config/RustDesk/` — cubre tanto el usuario live (casper regenera su home desde `skel` en cada arranque) como cualquier cuenta futura tras instalar, sin script adicional.
+- **Bug real del propio paquete, neutralizado:** el `postinst` de RustDesk hace `systemctl enable rustdesk; systemctl start rustdesk` incondicionalmente — el servicio de **acceso desatendido** (`rustdesk --service`, root, sin presencia del usuario, contraseña permanente), justo lo que el manual pide no activar por defecto. Verificado (no solo asumido) que ese bloque nunca se ejecutó en el chroot de Cubic: no existe `rustdesk.service` en ningún árbol de `systemd/` salvo la plantilla original del paquete — si el `postinst` lo hubiera copiado alguna vez, `systemctl disable` no habría borrado el archivo de la unidad, solo el enlace de activación. Su ausencia total demuestra que el bloque entero se saltó, no que se ejecutó y se deshizo.
+- **Confirmado también en real** (no solo en el chroot): tras generar la ISO y arrancar en el Dell, `systemctl status rustdesk` devuelve "could not be found" — cierra el ciclo de verificación en real que quedó pendiente.
+- **Probado el flujo de consentimiento con el servidor público de RustDesk** (temporalmente, restaurado el placeholder después): funciona bien, con latencia alta esperable — el servidor gratuito compartido (`rs-ny.rustdesk.com`, Nueva York) está congestionado y lejos de España; exactamente el caso de negocio real para tener servidor propio.
+
+## Nivel 4 — arranca el repositorio APT propio — commit `f75de66` (2026-07-13)
+
+Mismo patrón de alcance que RustDesk: preparación del lado cliente, servidor pendiente. Herramienta elegida para cuando se monte: **aptly**, sobre `reprepro`.
+
+- Generada una clave GPG dedicada (RSA 4096, caduca a 2 años — fuerza rotación por diseño). Solo la parte **pública** se versiona en el repo (`apt-repo/solwed-repo-signing-key.asc` armored, `apt-repo/solwed.gpg` binario) y se preinstala en `/etc/apt/trusted.gpg.d/` — segura de dejar activa sin repo real, una clave de confianza sin ningún `sources.list` que la use no hace nada.
+- **El `sources.list` se deja sin activar a propósito** — a diferencia de la clave, un fichero en `/etc/apt/sources.list.d/` se consulta en cada `apt update`, y fallaría visiblemente contra un dominio que no existe. Queda como plantilla (`apt-repo/solwed.list.template`, dominio placeholder `repo.solwed.es`) hasta tener servidor real.
+- **Incidente de seguridad, autocorregido en la misma sesión:** la clave privada se imprimió por accidente en el chat antes de entregarse solo como ruta de archivo. Como no había firmado nada real todavía, se optó por revocarla y regenerar una nueva desde cero en vez de arriesgarse — la segunda generación se entregó exclusivamente como ruta de archivo en la propia máquina del usuario, nunca impresa. Nueva regla general adoptada: cualquier secreto se entrega como ruta de archivo, nunca pegado en el chat.
+- Despliegue del servidor (`aptly repo create/add`, `snapshot create`, `publish snapshot`, patrón de publicación sin downtime con `publish switch`) documentado en el manual, sin ejecutar — no hay servidor todavía.
+
+**Infraestructura para el servidor — en discusión con el jefe, sin decidir (2026-07-13):** valorados un portátil de oficina (descartado para producción por falta de IP pública estable y fiabilidad de hardware no pensado para 24/7) y CloudPanel (viable — no de forma nativa, sino usándolo para el subdominio/TLS sobre un VPS Debian/Ubuntu real, con `aptly` instalado y gestionado aparte por SSH). Dado lo ligero de los requisitos (1 vCPU, ~1GB RAM, pocos GB de disco), la recomendación es reutilizar infraestructura ya existente antes que dedicar una máquina nueva.
