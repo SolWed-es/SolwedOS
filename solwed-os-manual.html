@@ -289,6 +289,9 @@
   .badge.low  { color: var(--low-fg);  background: var(--low-bg);  border-color: var(--low-line); }
   .badge.med  { color: var(--med-fg);  background: var(--med-bg);  border-color: var(--med-line); }
   .badge.high { color: var(--high-fg); background: var(--high-bg); border-color: var(--high-line); }
+  .badge.done    { color: var(--low-fg);  background: var(--low-bg);  border-color: var(--low-line); }
+  .badge.partial { color: var(--med-fg);  background: var(--med-bg);  border-color: var(--med-line); }
+  .badge.todo    { color: var(--ink-dim); background: var(--paper-2); border-color: var(--line); }
 
   h3.card-title {
     font-family: var(--serif);
@@ -423,19 +426,31 @@
       <p class="dek">Guía paso a paso para ir aplicando, bloque a bloque, las modificaciones de marca y comportamiento sobre la distro base con Cubic — de lo más visible y reversible a lo más estructural.</p>
       <div class="meta-row">
         <span class="meta-chip">Herramienta: Cubic</span>
-        <span class="meta-chip">Base: Anduin OS (Ubuntu)</span>
-        <span class="meta-chip">Fase: alpha</span>
-        <span class="meta-chip">4 niveles · 15 tareas</span>
+        <span class="meta-chip">Base: AnduinOS 2.0.0 (Ubuntu 26.04 "resolute")</span>
+        <span class="meta-chip">Fase: alpha — baseline Alpha 3.3.x</span>
+        <span class="meta-chip">4 niveles · Nivel 1-3 aplicados y probados en hardware real</span>
       </div>
     </div>
   </header>
 
+  <div class="callout">
+    <h3>Entorno real, confirmado (no ya una suposición)</h3>
+    <p>Las primeras versiones de este documento asumían datos genéricos de Ubuntu/GNOME sin verificar. Extrajimos el filesystem de una <code>AnduinOS-2.0.0.iso</code> limpia y arrancamos builds reales en un Dell Latitude 5490, así que esto ya no es una suposición — es lo que hay:</p>
+    <pre><code>XDG_CURRENT_DESKTOP=GNOME
+Gestor de sesión: <span class="fl">solo GDM3</span> — no hay LightDM en esta distro
+Extensiones de escritorio: dash-to-panel + arc-menu (arcmenu@arcmenu.com), confirmadas activas
+Defaults de dconf: <span class="fl">/etc/dconf/db/anduinos.d/</span> — <strong>no</strong> local.d, que ni siquiera está en la ruta de perfil activa (system-db:anduinos)
+/etc/os-release: ID_LIKE=<span class="fl">debian</span> (no ubuntu) · VERSION_CODENAME=<span class="fl">resolute</span> (no noble) · UBUNTU_CODENAME=resolute (mantenido, apt lo necesita)
+Plymouth: el tema base a forkear es <span class="fl">anduinos</span> (módulo two-step), no "spinner"</code></pre>
+    <p>Detalle completo y metodología de verificación en <code>ANDUIN-BASELINE.md</code>, en la raíz del repo.</p>
+  </div>
+
   <div class="callout warn">
-    <h3>Antes de tocar nada</h3>
-    <p>Este documento asume que Anduin OS usa <strong>GNOME</strong> con extensiones al estilo Windows (tipo dash-to-panel / arc-menu) para el escritorio, que es lo habitual en esta distro. No tengo acceso a tu instalación real, así que antes de cualquier paso de nivel 3 confirma el entorno exacto abriendo la terminal de Cubic (paso <em>Customize → Terminal</em>) y ejecutando:</p>
-    <pre><code>echo $XDG_CURRENT_DESKTOP
-dpkg -l | grep -i "gnome-shell-extension\|dash-to-panel\|arc-menu"</code></pre>
-    <p>Si los nombres no coinciden con lo descrito aquí, el mecanismo (dconf + gsettings) sigue siendo válido — solo cambian las rutas de esquema.</p>
+    <h3>3 bugs recurrentes — revisar tras <em>cada</em> Generate</h3>
+    <p>Estos tres han costado sesiones enteras de depuración porque no dan ningún error visible al fallar. Antes de grabar un ISO nuevo en el USB, comprueba los tres — detalle completo en <a href="#bugs-conocidos">Bugs conocidos de la plataforma</a>:</p>
+    <pre><code>1. EFI grub.cfg embebido en efiboot.img → puede revertirse solo si Cubic reconstruye desde el archivo equivocado
+2. AppArmor bwrap-userns-restrict → wallpaper/iconos en negro, <span class="cmt">solo en sistema instalado, nunca en live</span>
+3. Wrapper de /usr/bin/bwrap (fork en vez de exec) → apps con sandbox de imagen (LibreOffice) mueren al segundo de abrir</code></pre>
   </div>
 
   <div class="layout">
@@ -449,6 +464,7 @@ dpkg -l | grep -i "gnome-shell-extension\|dash-to-panel\|arc-menu"</code></pre>
             <li><a href="#item-wallpaper">Fondos y bloqueo</a></li>
             <li><a href="#item-oslogo">Identidad del sistema</a></li>
             <li><a href="#item-icons">Iconos y cursores</a></li>
+            <li><a href="#item-w-logo">Caso: logo "W."</a></li>
           </ol>
         </li>
         <li>
@@ -457,6 +473,7 @@ dpkg -l | grep -i "gnome-shell-extension\|dash-to-panel\|arc-menu"</code></pre>
             <li><a href="#item-plymouth">Splash de arranque</a></li>
             <li><a href="#item-grub">GRUB</a></li>
             <li><a href="#item-login">Pantalla de login</a></li>
+            <li><a href="#item-liveuser">Usuario live e instalado</a></li>
             <li><a href="#item-motd">MOTD / terminal</a></li>
           </ol>
         </li>
@@ -464,7 +481,9 @@ dpkg -l | grep -i "gnome-shell-extension\|dash-to-panel\|arc-menu"</code></pre>
           <span class="level-label"><a href="#nivel-3">Nivel 3 — Comportamiento</a></span>
           <ol>
             <li><a href="#item-apps">Apps preinstaladas</a></li>
+            <li><a href="#item-installer-pattern">Instaladores con privilegios</a></li>
             <li><a href="#item-panel">Menú inicio / taskbar</a></li>
+            <li><a href="#item-desktop-shortcut">Iconos de escritorio</a></li>
             <li><a href="#item-locale">Región e idioma</a></li>
             <li><a href="#item-browser">Navegador</a></li>
           </ol>
@@ -476,6 +495,9 @@ dpkg -l | grep -i "gnome-shell-extension\|dash-to-panel\|arc-menu"</code></pre>
             <li><a href="#item-wizard">Asistente de bienvenida</a></li>
             <li><a href="#item-support">Soporte remoto</a></li>
           </ol>
+        </li>
+        <li>
+          <span class="level-label"><a href="#bugs-conocidos">Bugs conocidos de la plataforma</a></span>
         </li>
         <li>
           <span class="level-label"><a href="#cubic-workflow">Flujo de trabajo en Cubic</a></span>
@@ -500,91 +522,82 @@ dpkg -l | grep -i "gnome-shell-extension\|dash-to-panel\|arc-menu"</code></pre>
         <p class="level-sub">Cambios de archivo y texto, sin tocar comportamiento. Se ven inmediatamente y son triviales de deshacer.</p>
 
         <article class="card" id="item-wallpaper">
-          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge done">✓ Hecho — Alpha 1.0 / 2.0 / 3.2.1</span></div>
           <h3 class="card-title">Fondo de pantalla y bloqueo</h3>
-          <p class="card-why">Sustituye los wallpapers de Ubuntu/Anduin por los de Solwed, incluyendo el que se ve en la pantalla de bloqueo.</p>
+          <p class="card-why">Sustituye los wallpapers de AnduinOS por los de Solwed. Confirmado en hardware real que la pantalla de bloqueo (Super+L) <strong>no tiene clave propia</strong> — reutiliza el mismo fondo de escritorio, así que no hace falta configurarla aparte.</p>
           <div class="files">
-            <span class="file-chip">/usr/share/backgrounds/solwed/</span>
+            <span class="file-chip">/usr/share/backgrounds/solwed/{solwed-claro,solwed-oscuro}.png</span>
             <span class="file-chip">/usr/share/gnome-background-properties/solwed.xml</span>
-            <span class="file-chip">/etc/dconf/db/local.d/</span>
+            <span class="file-chip">/etc/dconf/db/anduinos.d/21-solwed-wallpaper.conf</span>
           </div>
           <ol class="steps">
-            <li><p>En la terminal de Cubic, crea la carpeta y copia tus imágenes (recomendado exportar a 3840×2160 y una versión 1920×1080):</p>
+            <li><p>Copia las imágenes con esos dos nombres fijos exactos — todo lo demás (el XML, el dconf, y los tres sitios que referencian el wallpaper) apunta a ellos, así que sustituir la artwork más adelante es un simple <code>cp</code> sin tocar configuración:</p>
               <pre><code><span class="cmt"># dentro del chroot de Cubic</span>
 mkdir -p /usr/share/backgrounds/solwed
-cp fondo-claro.png fondo-oscuro.png /usr/share/backgrounds/solwed/</code></pre>
+cp solwed-claro.png solwed-oscuro.png /usr/share/backgrounds/solwed/</code></pre>
             </li>
-            <li><p>Registra el fondo para que aparezca en el selector de "Fondo de pantalla" con nombre propio, creando <code>/usr/share/gnome-background-properties/solwed.xml</code>:</p>
-              <pre><code>&lt;?xml version="1.0"?&gt;
-&lt;!DOCTYPE wallpapers SYSTEM "gnome-wp-list.dtd"&gt;
-&lt;wallpapers&gt;
-  &lt;wallpaper deleted="false"&gt;
-    &lt;name&gt;Solwed&lt;/name&gt;
-    &lt;filename&gt;/usr/share/backgrounds/solwed/fondo-claro.png&lt;/filename&gt;
-    &lt;filename-dark&gt;/usr/share/backgrounds/solwed/fondo-oscuro.png&lt;/filename-dark&gt;
-    &lt;options&gt;zoom&lt;/options&gt;
-  &lt;/wallpaper&gt;
-&lt;/wallpapers&gt;</code></pre>
-            </li>
-            <li><p>Fija ese fondo como valor por defecto vía dconf (así lo trae ya activado cualquier usuario nuevo), creando <code>/etc/dconf/db/local.d/00-solwed-background</code>:</p>
+            <li><p>Registra el fondo en <code>/usr/share/gnome-background-properties/solwed.xml</code> (igual que en el plan original).</p></li>
+            <li><p>Fíjalo por defecto en <code>/etc/dconf/db/anduinos.d/21-solwed-wallpaper.conf</code> — <strong>ojo, la ruta correcta es <code>anduinos.d/</code>, no <code>local.d/</code></strong> (ver ANDUIN-BASELINE.md: <code>local.d</code> ni siquiera está en el perfil dconf activo de este sistema):</p>
               <pre><code>[org/gnome/desktop/background]
-picture-uri='file:///usr/share/backgrounds/solwed/fondo-claro.png'
-picture-uri-dark='file:///usr/share/backgrounds/solwed/fondo-oscuro.png'
-picture-options='zoom'
-
-[org/gnome/desktop/screensaver]
-picture-uri='file:///usr/share/backgrounds/solwed/fondo-claro.png'</code></pre>
-              <p>Y aplica: <code>dconf update</code>.</p>
+picture-uri='file:///usr/share/backgrounds/solwed/solwed-claro.png'
+picture-uri-dark='file:///usr/share/backgrounds/solwed/solwed-oscuro.png'
+picture-options='zoom'</code></pre>
+              <p>Sin bloque <code>[org/gnome/desktop/screensaver]</code> — se probó y esa clave se ignora, confirmado arrancando en real. Aplica con <code>dconf update</code>.</p>
             </li>
-            <li><p>Opcional — si quieres que el usuario <em>no pueda</em> cambiarlo, añade la ruta de la clave en un fichero dentro de <code>/etc/dconf/db/local.d/locks/</code>.</p></li>
           </ol>
-          <div class="tip">No necesitas sesión gráfica para verlo: instala el paquete <code>eog</code> o simplemente confía en el XML — la validación real la harás arrancando la ISO en una VM.</div>
+          <div class="tip">Detalle real encontrado: el wallpaper oscuro se oscureció manualmente (×0.80 global) porque, al no existir clave de bloqueo independiente, es el único fondo que da contraste tanto en escritorio como en la pantalla de bloqueo con el panel de GDM encima.</div>
         </article>
 
         <article class="card" id="item-oslogo">
-          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge done">✓ Hecho — Alpha 1.0</span></div>
           <h3 class="card-title">Identidad del sistema ("Acerca de")</h3>
-          <p class="card-why">Que la pantalla de Ajustes → Acerca de, y cualquier script que consulte la versión del SO, muestren "Solwed OS" en vez de Ubuntu/Anduin.</p>
+          <p class="card-why">Que Ajustes → Acerca de, y cualquier script que consulte la versión del SO, muestren "Solwed OS".</p>
           <div class="files">
             <span class="file-chip">/etc/os-release</span>
             <span class="file-chip">/etc/lsb-release</span>
           </div>
           <ol class="steps">
-            <li><p>Edita <code>/etc/os-release</code> conservando <code>ID_LIKE=ubuntu</code> y el <code>VERSION_CODENAME</code> real (apt y otros scripts dependen de él para resolver repositorios — no lo inventes):</p>
+            <li><p>Edita <code>/etc/os-release</code> — <strong>los valores reales de AnduinOS son distintos de un Ubuntu genérico</strong>, y hay que conservarlos o apt/scripts que dependen de ellos se rompen:</p>
               <pre><code>NAME="Solwed OS"
-PRETTY_NAME="Solwed OS 1.0 (Alpha)"
+PRETTY_NAME="Solwed OS Alpha 3.3"
 ID=solwedos
-ID_LIKE=ubuntu
-VERSION="1.0"
-VERSION_ID="1.0"
-VERSION_CODENAME=noble
+ID_LIKE=<span class="fl">debian</span>          <span class="cmt"># no "ubuntu" — AnduinOS usa debian aquí</span>
+VERSION_CODENAME=<span class="fl">resolute</span>   <span class="cmt"># no "noble"</span>
+UBUNTU_CODENAME=resolute      <span class="cmt"># se mantiene, apt lo resuelve contra esto</span>
 HOME_URL="https://solwed.es"
 SUPPORT_URL="https://solwed.es/soporte"
 BUG_REPORT_URL="https://solwed.es/soporte"</code></pre>
             </li>
-            <li><p>Edita <code>/etc/lsb-release</code> en paralelo para herramientas que aún lo leen:</p>
-              <pre><code>DISTRIB_ID=SolwedOS
-DISTRIB_RELEASE=1.0
-DISTRIB_CODENAME=solwed
-DISTRIB_DESCRIPTION="Solwed OS 1.0"</code></pre>
-            </li>
-            <li><p>Si quieres logo propio en el panel "Acerca de" de GNOME Settings, coloca un SVG en <code>/usr/share/icons/hicolor/scalable/apps/solwed-logo.svg</code>, actualiza la caché (<code>gtk-update-icon-cache /usr/share/icons/hicolor</code>) y referencia <code>LOGO=solwed-logo</code> dentro de <code>/etc/os-release</code>.</p></li>
+            <li><p>Edita <code>/etc/lsb-release</code> en paralelo, igual que el plan original.</p></li>
           </ol>
         </article>
 
         <article class="card" id="item-icons">
-          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo-medio</span></div>
-          <h3 class="card-title">Iconos, cursores y acento de color</h3>
-          <p class="card-why">Anduin ya trae un tema tipo Fluent/WhiteSicel para parecerse a Windows 11 — en esta fase solo ajusta el acento de color, no cambies el tema entero todavía.</p>
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo-medio</span> <span class="badge done">✓ Hecho — Alpha 2.6 a 3.2.1</span></div>
+          <h3 class="card-title">Iconos, cursores, acento de color y el logo "W."</h3>
+          <p class="card-why">AnduinOS trae el tema <code>Fluent</code> con variantes de acento ya empaquetadas — el trabajo real no fue crear un tema, fue encontrar todos los sitios donde el azul de AnduinOS queda "hardcodeado" fuera del mecanismo de tema.</p>
           <ol class="steps">
-            <li><p>Identifica el tema activo y si soporta variantes de color:</p>
-              <pre><code>gsettings get org.gnome.desktop.interface icon-theme
-gsettings get org.gnome.desktop.interface gtk-theme
-gsettings get org.gnome.desktop.interface cursor-theme</code></pre>
+            <li><p>Acento de icono/GTK — activar la variante ya existente, no hace falta editar ningún <code>gtk.css</code>:</p>
+              <pre><code><span class="cmt"># en 99-anduinos-defaults.gschema.override</span>
+gtk-theme='Fluent-round-yellow-Dark'
+icon-theme='Fluent-yellow-dark'</code></pre>
+              <p>Y aparte, la barra/overview de GNOME Shell usa un esquema <em>distinto</em> del GTK theme — hay que fijarlo también en <code>03-system-extensions.conf</code>: <code>[org/gnome/shell/extensions/user-theme] name='Fluent-round-yellow-Dark'</code>. Los dos requieren <code>glib-compile-schemas</code> tras editar (son gschema override, no dconf db — no vale <code>dconf update</code> aquí).</p>
             </li>
-            <li><p>Si el tema expone variables de acento (muchos forks de Fluent/WhiteSur lo hacen), cambia solo el color de acento por el de Solwed en su hoja <code>gtk.css</code> — busca variables tipo <code>@accent_color</code> o <code>--accent-bg-color</code> antes de tocar nada más.</p></li>
+            <li><p><strong>Cursores:</strong> el spinner de carga y los cursores de resize se quedan azules aunque el icon-theme ya esté en amarillo — el cursor es un tema Xcursor totalmente aparte (binario: TOC + píxeles ARGB32 crudos por tamaño/frame). Se corrigió con un script propio (<code>scripts/recolor_cursors.py</code>) que rota el matiz azul (170°-250°) a amarillo Solwed conservando saturación/valor/alpha, con un filtro de ruido (rango mínimo de canal + mínimo de píxeles) para no tocar el anti-aliasing casi negro de los cursores básicos.</p></li>
+            <li><p><strong>Iconos de apps individuales:</strong> el icon-theme solo recolorea un subconjunto genérico (carpetas/chrome) — muchos iconos de apps traen su azul fijo en el propio SVG. Script <code>scripts/recolor_svg_icons.py</code>: sustitución de hex por regex + rotación de matiz, luego <code>gtk-update-icon-cache -f -t &lt;tema&gt;</code> (la caché binaria del tema queda obsoleta si no se regenera).</p></li>
           </ol>
-          <div class="aviso"><strong>Aviso:</strong> no se puede validar visualmente un tema GTK dentro del chroot de Cubic (no hay sesión gráfica). Guarda el cambio, genera la ISO y arráncala en una VM (QEMU/VirtualBox) para comprobar que no rompe el renderizado antes de seguir iterando.</div>
+          <div class="aviso"><strong>Gotcha real, repetido dos veces:</strong> varios SVG de este set de iconos no son vectores puros — embeben un PNG en base64 dentro (<code>&lt;image xlink:href="data:image/png;base64,..."&gt;</code>), típicamente para el "cuerpo" con sombreado de un icono. Un script de sustitución de hex sobre el SVG solo toca los trazos vectoriales y deja el raster embebido intacto → resultado "medio amarillo, medio azul". <strong>Antes de fiarte de un fix de icono por regex, haz <code>grep base64</code> sobre el SVG.</strong></div>
+        </article>
+
+        <article class="card" id="item-w-logo">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge done">✓ Hecho — Alpha 3.3</span></div>
+          <h3 class="card-title">Caso de estudio: el logo "W." de dos tonos</h3>
+          <p class="card-why">La marca "W." (dos V superpuestas — una amarilla sólida, una blanca sólida, más un punto) aparece en tres sitios: watermark de Plymouth, icono del botón de inicio del ArcMenu, y el wordmark de wallpapers/slideshow. Documentado aparte porque el primer intento de arreglarla fue un fracaso instructivo.</p>
+          <ol class="steps">
+            <li><p><strong>Primer intento (fallido):</strong> heurística de "blob más grande = ancla, blobs de color contrario que la tocan cambian de color". Parecía razonable y hasta pasaba una verificación superficial (conteo de manchas, render visual rápido) — pero el usuario comparó contra una captura de referencia real y resultó que 3 de los 4 trazos habían quedado amarillos en vez de alternar correctamente Y-W-Y-W entre las dos V.</p></li>
+            <li><p><strong>Fix correcto:</strong> usar una imagen de referencia real como fuente de verdad, no adivinar estructura desde el asset roto. <code>scripts/fix_w_logo_colors.py</code> clasifica la referencia en un campo continuo de "amarillez", recorta el sub-área de la marca en el asset roto (saltándose cualquier texto tipo "Solwed OS" a su izquierda — detectado por el hueco de columnas vacías <em>más a la derecha</em>, no el más ancho, porque el espaciado entre palabras del texto puede ser más ancho que el hueco real texto→marca), y remapea cada píxel por posición normalizada contra la referencia.</p></li>
+          </ol>
+          <div class="aviso"><strong>Lección general:</strong> una heurística de conectividad/tamaño puede producir un resultado que "parece" correcto (sin manchas sueltas, renderiza limpio) y aun así tener una asignación de color sistemáticamente equivocada. Cuando el usuario aporta una captura de referencia para un fix visual, más vale derivar el fix directamente de esa referencia (lookup por posición) que de cualquier heurística que infiera "lo correcto" solo del asset roto.</div>
         </article>
       </section>
 
@@ -599,78 +612,74 @@ gsettings get org.gnome.desktop.interface cursor-theme</code></pre>
         <p class="level-sub">Lo primero que ve un cliente al encender el equipo. Requiere regenerar initramfs/GRUB, así que cada cambio debe probarse en una VM antes de pasar al siguiente.</p>
 
         <article class="card" id="item-plymouth">
-          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span></div>
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Hecho — Alpha 2.3 a 3.3</span></div>
           <h3 class="card-title">Splash de arranque (Plymouth)</h3>
-          <p class="card-why">La animación con logo que se ve mientras el sistema arranca, antes del login.</p>
+          <p class="card-why">La animación con logo mientras el sistema arranca, antes del login.</p>
           <div class="files">
-            <span class="file-chip">/usr/share/plymouth/themes/solwed/</span>
+            <span class="file-chip">/usr/share/plymouth/themes/solwedos/</span>
           </div>
           <ol class="steps">
-            <li><p>Instala las dependencias si faltan y parte de un tema existente como base (es más fiable que escribir el script desde cero):</p>
-              <pre><code>apt install plymouth-x11 plymouth-themes
-cp -r /usr/share/plymouth/themes/spinner /usr/share/plymouth/themes/solwed
-cd /usr/share/plymouth/themes/solwed
-mv spinner.plymouth solwed.plymouth
-mv spinner.script solwed.script</code></pre>
+            <li><p>El tema base correcto a forkear es <code>anduinos</code> (módulo <code>two-step</code>), <strong>no <code>spinner</code></strong> — copiarlo tal cual evita tener que escribir un <code>.script</code> desde cero y es más seguro (un <code>.script</code> con errores de sintaxis deja pantalla negra sin mensaje visible):</p>
+              <pre><code>cp -r /usr/share/plymouth/themes/anduinos /usr/share/plymouth/themes/solwedos
+cd /usr/share/plymouth/themes/solwedos
+mv anduinos.plymouth solwedos.plymouth</code></pre>
             </li>
-            <li><p>Edita <code>solwed.plymouth</code> (metadatos) y dentro de <code>solwed.script</code> sustituye la referencia a la imagen del logo y el color del spinner por los de Solwed — son las únicas líneas que necesitas tocar en un theme de tipo "spinner".</p></li>
-            <li><p>Regístralo como el tema por defecto:</p>
-              <pre><code>update-alternatives --install /usr/share/plymouth/themes/default.plymouth \
-  default.plymouth /usr/share/plymouth/themes/solwed/solwed.plymouth 100
-update-alternatives --set default.plymouth \
-  /usr/share/plymouth/themes/solwed/solwed.plymouth</code></pre>
-            </li>
-            <li><p>Regenera el initramfs para que el nuevo tema quede empaquetado en la ISO:</p>
-              <pre><code>update-initramfs -u</code></pre>
+            <li><p>El watermark final combina texto "Solwed OS" + el icono de marca "W." — ver <a href="#item-w-logo">caso de estudio del logo W.</a> para el color de dos tonos. Texto renderizado en "Ubuntu Bold" (Cantarell, que el theme declara por defecto, no está instalado como paquete en este chroot).</p></li>
+            <li><p>Regístralo con <code>update-alternatives</code> sobre <code>default.plymouth</code>, igual que el plan original.</p></li>
+            <li><p><strong>Regenera initramfs con el flag completo</strong>, no basta <code>update-initramfs -u</code> a secas cuando hay múltiples kernels o cuando quieres estar seguro de que el kernel que arranca de verdad recoge el cambio:</p>
+              <pre><code>update-initramfs -u -k all</code></pre>
             </li>
           </ol>
-          <div class="aviso"><strong>Aviso:</strong> un error de sintaxis en el <code>.script</code> puede dejar el arranque en pantalla negra sin mensaje de error visible. Prueba siempre en una VM antes de tocar el siguiente punto.</div>
+          <div class="aviso"><strong>Gotcha real, repetido varias veces en este proyecto:</strong> cualquier edición dentro de <code>/usr/share/plymouth/themes/</code> vive en el filesystem normal, pero lo que arranca de verdad viene empaquetado <em>dentro</em> del initramfs. Si editas el asset y no recompilas initramfs, el cambio existe en el chroot pero no se ve al arrancar — pasó dos veces con el fix del logo "W.": el primer intento se dio por aplicado sin recompilar initramfs y no se veía en real. Verifica extrayendo el initrd (<code>unmkinitramfs</code>) y comparando byte a byte el asset embebido contra el del chroot, no te fíes solo de que el comando "se ejecutó".</div>
         </article>
 
         <article class="card" id="item-grub">
-          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span></div>
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Verificado — sin cambios necesarios</span></div>
           <h3 class="card-title">GRUB</h3>
           <p class="card-why">Fondo, nombre y tiempos de espera del menú de arranque.</p>
-          <div class="files">
-            <span class="file-chip">/etc/default/grub</span>
-          </div>
-          <ol class="steps">
-            <li><p>Coloca una imagen de fondo (PNG/JPG, resolución de pantalla habitual) en, por ejemplo, <code>/boot/grub/solwed-fondo.png</code>.</p></li>
-            <li><p>Edita <code>/etc/default/grub</code>:</p>
-              <pre><code>GRUB_DISTRIBUTOR="Solwed OS"
-GRUB_BACKGROUND="/boot/grub/solwed-fondo.png"
-GRUB_TIMEOUT=5
-GRUB_TIMEOUT_STYLE=menu</code></pre>
-            </li>
-            <li><p>Regenera la configuración:</p>
-              <pre><code>update-grub</code></pre>
-            </li>
-          </ol>
-          <div class="tip">Comprueba tras una instalación real en VM que el instalador (Calamares/Ubiquity, según cuál use Anduin) no sobreescribe estos valores al final del proceso.</div>
+          <p class="card-why">Comprobado en real: <strong>no hizo falta tocar nada aquí</strong>. El menú ya viene oculto por defecto en AnduinOS y el nombre del distribuidor ya sale correcto porque se deriva de <code>/etc/os-release</code> (ver <a href="#item-oslogo">Identidad del sistema</a>) sin necesidad de <code>GRUB_DISTRIBUTOR</code> explícito.</p>
+          <div class="aviso"><strong>El verdadero bug de esta zona no fue de configuración, fue estructural</strong> — un fallo del propio proceso de reempaquetado de Cubic sobre AnduinOS que rompe el arranque EFI en cualquier ISO reconstruida, modificada o no. Ver <a href="#bugs-conocidos">Bugs conocidos de la plataforma → EFI grub.cfg</a>.</div>
         </article>
 
         <article class="card" id="item-login">
-          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span></div>
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Hecho — Alpha 2.4 a 2.5</span></div>
           <h3 class="card-title">Pantalla de login</h3>
-          <p class="card-why">Fondo y logo en la pantalla previa a iniciar sesión.</p>
+          <p class="card-why">Fondo y logo en la pantalla previa a iniciar sesión. Esta distro <strong>solo trae GDM3</strong> — no hay LightDM que comprobar ni entre el que elegir.</p>
           <ol class="steps">
-            <li><p>Comprueba qué gestor de sesiones usa Anduin:</p>
-              <pre><code>cat /etc/X11/default-display-manager</code></pre>
+            <li><p><strong>Fondo del login:</strong> AnduinOS ya trae su propia herramienta para esto, no hace falta tocar gresources ni CSS del shell a mano:</p>
+              <pre><code>anduinos-gdm-set-wallpaper /usr/share/backgrounds/solwed/solwed-oscuro.png</code></pre>
+              <p>(paquete <code>anduinos-gdm3-wallpaper</code>), que hace <code>update-alternatives</code> sobre <code>/usr/share/gnome-shell/gdm-theme.gresource</code> internamente. Los flags <code>--darken</code>/<code>--blur</code> necesitan <code>imagemagick</code> (no instalado por defecto) — omitidos porque el wallpaper oscuro ya tiene contraste de sobra.</p>
             </li>
-            <li><p>Si es <strong>LightDM</strong> (más sencillo), edita <code>/etc/lightdm/lightdm-gtk-greeter.conf</code>:</p>
-              <pre><code>[greeter]
-background=/usr/share/backgrounds/solwed/fondo-claro.png
-logo=/usr/share/icons/hicolor/scalable/apps/solwed-logo.svg
-default-user-image=/usr/share/pixmaps/solwed-avatar.png</code></pre>
+            <li><p><strong>Logo/badge pequeño del login</strong> (independiente del fondo) — se controla en <code>/etc/gdm3/greeter.dconf-defaults</code> (formato ini, no el mecanismo de perfil dconf — este sistema no tiene <code>/etc/dconf/profile/gdm</code>):</p>
+              <pre><code>[org/gnome/login-screen]
+logo='/usr/share/solwed/gdm-logo.png'</code></pre>
+              <p>Imagen pequeña, ~300×61.</p>
             </li>
-            <li><p>Si es <strong>GDM</strong> (más habitual en GNOME/Anduin), el fondo se controla vía el CSS del shell-theme, que corre como el usuario del sistema <code>Debian-gdm</code> — es más cómodo instalar temporalmente una herramienta de theming de gdm en el chroot, generar el CSS con ella, copiar solo el resultado, y luego desinstalar la herramienta antes de cerrar el proyecto en Cubic.</p></li>
+            <li><p><strong>Icono del botón de inicio (ArcMenu):</strong> apunta a un archivo real, no a una clave dconf de icono — <code>10-arcmenu.conf</code> señala <code>.../arcmenu@arcmenu.com/icons/anduinos-logo.svg</code>, así que rebrandearlo es sustituir ese SVG en sitio (empaquetado como wrapper mínimo con un PNG embebido en base64, no un vector a mano, para mantener la extensión <code>.svg</code> que el código de la extensión espera).</p></li>
           </ol>
         </article>
 
+        <article class="card" id="item-liveuser">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge done">✓ Hecho — Alpha 2.4/2.5</span></div>
+          <h3 class="card-title">Usuario, hostname y nombre de app en sesión live</h3>
+          <p class="card-why">No estaba en el plan original: qué nombre de usuario/equipo/apps se ve mientras arranca desde el USB en modo live, antes de instalar.</p>
+          <div class="files">
+            <span class="file-chip">/etc/casper.conf</span>
+            <span class="file-chip">/etc/hostname</span>
+            <span class="file-chip">/usr/share/applications/*.desktop</span>
+          </div>
+          <ol class="steps">
+            <li><p>Usuario/hostname/nombre completo de la sesión live se editan en texto plano en <code>/etc/casper.conf</code> (<code>USERNAME</code>, <code>USERFULLNAME</code>, <code>HOST</code>, <code>FLAVOUR</code>) — sin chroot especial, un <code>sudo</code> normal desde el host basta.</p></li>
+            <li><p>El hostname del <em>sistema ya instalado</em> (<code>/etc/hostname</code>) es un archivo aparte del <code>HOST</code> de casper — fácil arreglar uno y olvidarse del otro.</p></li>
+            <li><p>Nombres de apps en el menú de inicio son claves <code>Name[xx_XX]=</code> por locale dentro de cada <code>.desktop</code> — hay que editar tanto la clave sin sufijo como <code>Name[es_ES]=</code>.</p></li>
+          </ol>
+          <div class="aviso"><strong>Gotcha:</strong> <code>/usr/share/initramfs-tools/hooks/casper</code> copia <code>/etc/casper.conf</code> DENTRO de <code>initrd.gz</code> al construir el initramfs. Editar el archivo solo no hace nada para el arranque live hasta volver a correr <code>update-initramfs -u -k all</code> — mismo patrón que el gotcha de Plymouth de arriba.</div>
+        </article>
+
         <article class="card" id="item-motd">
-          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge todo">○ Pendiente</span></div>
           <h3 class="card-title">MOTD y terminal</h3>
-          <p class="card-why">Mensaje de bienvenida que se ve al abrir una terminal, útil para dejar enlaces de soporte visibles.</p>
+          <p class="card-why">Mensaje de bienvenida que se ve al abrir una terminal, útil para dejar enlaces de soporte visibles. Sin tocar todavía — plan original sin cambios, sigue siendo válido.</p>
           <div class="files">
             <span class="file-chip">/etc/update-motd.d/</span>
             <span class="file-chip">/etc/default/motd-news</span>
@@ -701,81 +710,99 @@ echo</code></pre>
         <p class="level-sub">Aquí ya se toca qué trae instalado el sistema y cómo se comporta el escritorio por defecto — conviene validar cada cambio en una VM antes de encadenar el siguiente.</p>
 
         <article class="card" id="item-apps">
-          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span></div>
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Hecho — Alpha 3.1 a 3.3</span></div>
           <h3 class="card-title">Apps preinstaladas</h3>
-          <p class="card-why">Quitar lo que un cliente de Solwed no necesita (juegos, LibreOffice si no aplica) y dejar preinstaladas vuestras herramientas.</p>
+          <p class="card-why">Set final decidido para clientes de Solwed (pymes, gestoría, hosting): ofimática, firma electrónica, PDF, backup, y una app propia de Solwed.</p>
+          <div class="files">
+            <span class="file-chip">libreoffice</span>
+            <span class="file-chip">thunderbird (PPA)</span>
+            <span class="file-chip">okular</span>
+            <span class="file-chip">timeshift</span>
+            <span class="file-chip">brave-browser</span>
+            <span class="file-chip">autofirma (deb propio)</span>
+            <span class="file-chip">facturascripts (instalador propio)</span>
+          </div>
           <ol class="steps">
-            <li><p>Antes de quitar un paquete, simula la operación para ver qué más se llevaría por delante:</p>
-              <pre><code>apt-get -s remove nombre-paquete</code></pre>
+            <li><p><strong>LibreOffice:</strong> <code>apt-get install libreoffice</code>, sin sorpresas.</p></li>
+            <li><p><strong>Thunderbird real (no snap)</strong> vía <code>ppa:mozillateam/ppa</code> + pin duro a esa PPA para ganarle al paquete transicional de Ubuntu (AnduinOS bloquea snapd por defecto, así que el transicional falla). <strong>Bug encontrado:</strong> <code>add-apt-repository</code> falla para <em>cualquier</em> PPA en este sistema — el rebrand <code>ID=solwedos</code> del Nivel 1 rompe silenciosamente la plantilla que python-apt usa para resolver PPAs. Fix, copiando desde una AnduinOS limpia de referencia (mismo patrón para cualquier futuro archivo "roto" por el ID):</p>
+              <pre><code>cp reference/.../usr/share/python-apt/templates/anduinos.info \
+   /usr/share/python-apt/templates/solwedos.info
+cp reference/.../usr/share/distro-info/anduinos.csv \
+   /usr/share/distro-info/solwedos.csv</code></pre>
             </li>
-            <li><p>Si el resultado no toca nada del escritorio o de las extensiones que usa Anduin para el look Windows, aplícalo de verdad:</p>
-              <pre><code>apt remove --purge nombre-paquete</code></pre>
-            </li>
-            <li><p>Para añadir software propio, lo más limpio es empaquetarlo como <code>.deb</code> e instalarlo dentro del chroot (o publicarlo en vuestro propio repo — ver Nivel 4):</p>
-              <pre><code>apt install ./solwed-agente-soporte_1.0_amd64.deb</code></pre>
-            </li>
+            <li><p><strong>Plugin de WhatsApp para Thunderbird</strong> ("WhatsApp Web in Thunderbird", GUID <code>wa-in-th@ftassy.github.io</code>) preinstalado vía sideload global — comprobado que <code>extensions.autoDisableScopes</code> no incluye el bit de distribución, así que basta con dejar el <code>.xpi</code> en <code>usr/lib/thunderbird/distribution/extensions/&lt;GUID&gt;.xpi</code> para que se auto-active. Plantilla reutilizable para cualquier otro addon de Firefox/Thunderbird que se quiera preinstalar.</p></li>
+            <li><p><strong>Autofirma 1.9</strong> (firma electrónica española): <code>dpkg -i</code> + <code>apt-get install -f</code>. Su propio certificado de confianza local no llega a Chromium/Brave por defecto — ver aparte, es un bug de confianza de certificado, no de instalación.</p></li>
+            <li><p><strong>Okular, Timeshift:</strong> <code>apt-get install</code> directo, sin nada especial.</p></li>
+            <li><p><strong>Remmina se probó y se quitó</strong> — se instaló inicialmente como cliente RDP/VNC, pero tras aclarar que no cubre el caso de uso de soporte remoto (Remmina es para que el cliente se conecte él mismo <em>hacia fuera</em>; lo que hace falta para soporte es lo contrario, ver <a href="#item-support">Nivel 4 → Soporte remoto</a>), se desinstaló por decisión del negocio: <code>apt-get purge -y remmina remmina-common remmina-plugin-rdp remmina-plugin-secret remmina-plugin-vnc</code>.</p></li>
           </ol>
-          <div class="aviso"><strong>Aviso:</strong> quitar un paquete de sistema como una extensión de GNOME puede romper el escritorio si Anduin depende de ella para el efecto "estilo Windows". Revisa dependientes con <code>apt-cache rdepends nombre-paquete</code> antes de purgar.</div>
+          <div class="aviso"><strong>Aviso real, no genérico:</strong> AnduinOS empaqueta cada aspecto de marca como su propio metapaquete <code>anduinos-*</code> con <code>Depends</code> estrictos (<code>anduinos-desktop-core</code> arrastra gdm3/gnome-shell/etc.) — un <code>apt-get install</code> de dependencias puede sustituir sin avisar un paquete de AnduinOS por su equivalente vanilla de Ubuntu (pasó con <code>software-properties-common</code>, causa raíz del bug de PPA de arriba). Compara <code>dpkg -l</code> contra la ISO de referencia limpia si algo empieza a fallar sin motivo aparente.</div>
+        </article>
+
+        <article class="card" id="item-installer-pattern">
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Patrón establecido — Alpha 3.1</span></div>
+          <h3 class="card-title">Patrón: instaladores GUI propios con privilegios</h3>
+          <p class="card-why">No estaba en el plan original. Necesario para el instalador propio de FacturaScripts (con progreso visual tipo <code>zenity</code>) y reutilizable para cualquier futura app propia de Solwed que necesite privilegios + interfaz.</p>
+          <ol class="steps">
+            <li><p><strong>Bug encontrado:</strong> este sistema es <strong>Wayland-only</strong> (no existe <code>xsessions/</code>, solo <code>wayland-sessions/gnome.desktop</code>). Un <code>Exec=pkexec /ruta/instalador.sh</code> que dentro llama a <code>zenity</code> repetidas veces falla en silencio — a diferencia de X11, un proceso root no puede abrir ventanas en la sesión Wayland de un usuario normal, y el error de cada <code>zenity</code> se pierde en el log del propio script. El instalador "no hacía nada" sin ningún error visible.</p></li>
+            <li><p><strong>Patrón correcto — separar en dos scripts:</strong> el <code>.desktop</code> apunta a un wrapper <em>sin</em> <code>pkexec</code> que corre como el usuario real y es el único que llama a <code>zenity</code>. Ese wrapper eleva <em>solo</em> el trabajo de verdad en una tubería:</p>
+              <pre><code>pkexec /opt/solwed/instalador-worker.sh | zenity --progress ...</code></pre>
+              <p>En una tubería de shell, <code>pkexec</code> solo eleva el comando de la izquierda — <code>zenity</code> a la derecha sigue siendo un hijo normal de la sesión del usuario y puede mostrar ventanas sin problema. El worker no hace ninguna llamada gráfica, solo emite el protocolo stdin de <code>zenity --progress</code> (<code>echo "N"</code> / <code>echo "# mensaje"</code>), con <code>&gt;&gt;"$LOG" 2&gt;&1</code> explícito en cada comando ruidoso para que nada más llegue a la tubería. <code>PKEXEC_UID</code> (que pkexec fija sobre lo que lanza directamente, ahora el worker) sigue disponible para resolver el usuario invocador.</p>
+            </li>
+            <li><p><strong>Bug relacionado — Apache no recarga el módulo tras <code>a2enmod</code>:</strong> si el paquete <code>apache2</code> ya arrancó el servicio en su propio postinst (comportamiento normal de Debian al instalar), <code>systemctl enable --now apache2</code> es un no-op porque ya estaba corriendo, y el módulo recién habilitado por <code>a2enmod</code> no se carga en el proceso vivo. Regla general: tras cualquier <code>a2enmod</code>/<code>a2dismod</code> o edición de config de Apache, siempre <code>systemctl restart apache2</code> explícito, nunca fiarse de <code>enable --now</code>.</p></li>
+          </ol>
         </article>
 
         <article class="card" id="item-panel">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo medio-alto</span></div>
-          <h3 class="card-title">Menú de inicio y barra de tareas</h3>
-          <p class="card-why">La pieza más "Anduin" de todas — normalmente gestionada por extensiones de GNOME (tipo dash-to-panel para la barra, arc-menu para el menú inicio).</p>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo medio-alto</span> <span class="badge done">✓ Hecho — Alpha 3.1 a 3.1.1</span></div>
+          <h3 class="card-title">Menú de inicio y barra de tareas (ArcMenu)</h3>
+          <p class="card-why">AnduinOS usa <code>arcmenu@arcmenu.com</code> para el menú de inicio y <code>dash-to-panel</code> para la barra — el mecanismo real es más simple que "exportar un dump de dconf": los pines son entradas planas en un array.</p>
+          <div class="files">
+            <span class="file-chip">/etc/dconf/db/anduinos.d/10-arcmenu.conf</span>
+            <span class="file-chip">99-anduinos-defaults.gschema.override</span>
+          </div>
           <ol class="steps">
-            <li><p>Esta parte no se puede ajustar a ciegas dentro del chroot de Cubic porque necesita una sesión gráfica real. Arranca primero la ISO tal cual en una VM y confirma las extensiones activas:</p>
-              <pre><code>gnome-extensions list --enabled</code></pre>
-            </li>
-            <li><p>Configura a mano en esa VM el menú, los anclajes y la posición de la barra tal y como quieres que venga por defecto.</p></li>
-            <li><p>Exporta esa configuración ya ajustada:</p>
-              <pre><code>dconf dump /org/gnome/shell/extensions/dash-to-panel/ &gt; dash-to-panel.ini</code></pre>
-            </li>
-            <li><p>Vuelve al chroot de Cubic y convierte ese volcado en el valor por defecto del sistema, en <code>/etc/dconf/db/local.d/01-solwed-panel</code> (con la cabecera de sección correspondiente, p. ej. <code>[org/gnome/shell/extensions/dash-to-panel]</code>), más las apps ancladas:</p>
-              <pre><code>[org/gnome/shell]
-favorite-apps=['firefox.desktop', 'solwed-soporte.desktop', 'org.gnome.Nautilus.desktop']</code></pre>
-              <p>Aplica con <code>dconf update</code>.</p>
-            </li>
+            <li><p><strong>Pines del menú de inicio</strong> (distinto de los favoritos de la barra de tareas — hay que actualizar los dos por separado si cambias una app): array plano <code>pinned-apps</code> de <code>{'id': '&lt;algo&gt;.desktop'}</code> en <code>10-arcmenu.conf</code>.</p></li>
+            <li><p><strong>Favoritos de la barra de tareas:</strong> clave <code>favorite-apps</code> dentro de <code>99-anduinos-defaults.gschema.override</code> — esto es gschema override, no dconf db, así que necesita <code>glib-compile-schemas</code>, no <code>dconf update</code>. El orden de la lista es el orden visual izquierda→derecha.</p></li>
+            <li><p><strong>Carpetas dentro del menú</strong> (usadas para agrupar LibreOffice): una entrada normal con <code>isFolder: 'true'</code> y un UUID propio, cuyo contenido real vive en una segunda sección relocatable <code>[org/gnome/shell/extensions/arcmenu/pinned-apps-folders/&lt;uuid&gt;]</code> en el mismo archivo — no hace falta ninguna herramienta especial, es solo otra sección de dconf.</p></li>
+            <li><p>Antes de pinar o quitar cualquier app, comprueba con <code>grep NoDisplay</code> sobre <code>/usr/share/applications/</code> — casi todas las apps traen 2-3 <code>.desktop</code> (el real + ayudante de asociación de archivo + duplicado para portal), y solo uno es el que corresponde al menú.</p></li>
           </ol>
-          <div class="tip">Documenta en tu changelog qué esquema dconf corresponde a qué extensión — la versión exacta de Anduin puede cambiar de una extensión a otra entre releases.</div>
+          <div class="aviso"><strong>Bug encontrado — pin obsoleto tras cambiar de navegador:</strong> al pasar de Firefox a Brave, la barra de tareas se actualizó pero el pin del menú de inicio se quedó apuntando a <code>firefox.desktop</code> (ya no existe). <strong>Regla general:</strong> cualquier app que se sustituye o se quita necesita <code>grep</code> sobre <em>todos</em> los <code>.conf</code> de <code>anduinos.d/</code> — los pines pueden vivir en más de un sitio y solo se actualiza el que alguien recuerda.</div>
+        </article>
+
+        <article class="card" id="item-desktop-shortcut">
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge done">✓ Patrón establecido — Alpha 3.1</span></div>
+          <h3 class="card-title">Patrón: iconos de escritorio de confianza automática</h3>
+          <p class="card-why">Un <code>.desktop</code> suelto en <code>/etc/skel/Desktop/</code> aparece marcado "sin confianza" hasta que el usuario hace clic derecho → Permitir lanzamiento. Ese estado de confianza es metadato GVFS por usuario en tiempo de ejecución — no se puede hornear en la imagen.</p>
+          <ol class="steps">
+            <li><p>Script idempotente <code>/usr/lib/solwed/trust-desktop-shortcuts.sh</code> que recorre <code>$HOME/Desktop/*.desktop</code> y hace <code>gio set ... metadata::trusted true</code> + <code>chmod +x</code>.</p></li>
+            <li><p>Lanzado en cada login vía <code>/etc/xdg/autostart/solwed-trust-desktop-shortcuts.desktop</code> (<code>X-GNOME-Autostart-enabled=true</code>) — barato, idempotente, sin necesidad de marcador de "ya ejecutado una vez".</p></li>
+          </ol>
+          <div class="tip">Mismo patrón reutilizado para el certificado de Autofirma en el navegador (confianza NSS por usuario, tampoco horneable en la imagen).</div>
         </article>
 
         <article class="card" id="item-locale">
-          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge done">✓ Hecho — Alpha 2.9</span></div>
           <h3 class="card-title">Región, idioma y teclado por defecto</h3>
-          <p class="card-why">Que el sistema salga ya listo en español, con teclado ES y hora de Madrid, sin pasar por el asistente de instalación.</p>
+          <p class="card-why">Que el sistema salga ya listo en español, con teclado ES y hora de Madrid.</p>
           <ol class="steps">
-            <li><p>Genera e instala el locale español:</p>
-              <pre><code>locale-gen es_ES.UTF-8
-update-locale LANG=es_ES.UTF-8</code></pre>
+            <li><p>Locale, igual que el plan original: <code>locale-gen es_ES.UTF-8</code> + <code>update-locale</code>.</p></li>
+            <li><p>Teclado en <code>/etc/default/keyboard</code> — variante "Windows" española, no la genérica:</p>
+              <pre><code>XKBLAYOUT="es"
+XKBVARIANT="winkeys"</code></pre>
             </li>
-            <li><p>Teclado, en <code>/etc/default/keyboard</code>:</p>
-              <pre><code>XKBLAYOUT="es"</code></pre>
+            <li><p><strong>El archivo de teclado por sí solo no basta</strong> — la sesión GNOME real necesita también el override explícito, o vuelve a "us" en el primer login:</p>
+              <pre><code>[org/gnome/desktop/input-sources]
+sources=[('xkb', 'es+winkeys')]</code></pre>
             </li>
-            <li><p>Zona horaria (el enlace simbólico es más fiable que <code>timedatectl</code> dentro de un chroot sin systemd corriendo):</p>
-              <pre><code>ln -sf /usr/share/zoneinfo/Europe/Madrid /etc/localtime</code></pre>
-            </li>
+            <li><p>Zona horaria, igual que el plan original: enlace simbólico sobre <code>/etc/localtime</code>.</p></li>
           </ol>
         </article>
 
         <article class="card" id="item-browser">
-          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span></div>
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge partial">↻ Cambiado — Alpha 3.0</span></div>
           <h3 class="card-title">Navegador por defecto</h3>
-          <p class="card-why">Página de inicio y marcadores apuntando al soporte/portal de Solwed desde el primer arranque.</p>
-          <ol class="steps">
-            <li><p>Si el navegador es Firefox, usa el mecanismo oficial de políticas de empresa (no toca perfiles de usuario, así que sobrevive a la creación de cuentas nuevas): crea <code>/usr/lib/firefox/distribution/policies.json</code>:</p>
-              <pre><code>{
-  "policies": {
-    "Homepage": {
-      "URL": "https://solwed.es",
-      "StartPage": "homepage"
-    },
-    "Bookmarks": [
-      { "Title": "Soporte Solwed", "URL": "https://solwed.es/soporte", "Placement": "toolbar" }
-    ]
-  }
-}</code></pre>
-            </li>
-          </ol>
+          <p class="card-why"><strong>El plan cambió respecto al original:</strong> no se mantuvo el Firefox propio de AnduinOS con <code>policies.json</code> — se desinstaló Firefox por completo y se instaló <strong>Brave</strong> en su lugar. Homepage/marcadores de Brave sin configurar todavía (pendiente si se retoma).</p>
+          <div class="aviso"><strong>Recordatorio:</strong> cualquier cambio de navegador obliga a revisar pines huérfanos en ArcMenu (ver <a href="#item-panel">Menú de inicio</a> arriba) y, si el nuevo navegador es Chromium/Brave, la confianza de certificados NSS por usuario es distinta de Firefox (ver Autofirma en <a href="#item-apps">Apps preinstaladas</a>).</div>
         </article>
       </section>
 
@@ -790,7 +817,7 @@ update-locale LANG=es_ES.UTF-8</code></pre>
         <p class="level-sub">Esto ya es infraestructura y producto propio, no solo configuración de la ISO — resérvalo para cuando el alpha esté estable.</p>
 
         <article class="card" id="item-repo">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span></div>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge todo">○ Pendiente</span></div>
           <h3 class="card-title">Repositorio APT propio</h3>
           <p class="card-why">Poder empujar actualizaciones y herramientas de Solwed a los equipos ya instalados, sin reconstruir la ISO cada vez.</p>
           <ol class="steps">
@@ -805,7 +832,7 @@ update-locale LANG=es_ES.UTF-8</code></pre>
         </article>
 
         <article class="card" id="item-wizard">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span></div>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge todo">○ Pendiente</span></div>
           <h3 class="card-title">Asistente de bienvenida (primer arranque)</h3>
           <p class="card-why">Una pantalla propia de Solwed que reciba al cliente la primera vez que entra, en vez del asistente genérico de GNOME.</p>
           <ol class="steps">
@@ -816,9 +843,10 @@ update-locale LANG=es_ES.UTF-8</code></pre>
         </article>
 
         <article class="card" id="item-support">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span></div>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge todo">○ Pendiente</span></div>
           <h3 class="card-title">Soporte remoto preconfigurado</h3>
           <p class="card-why">Que vuestro equipo pueda asistir a un cliente sin que tenga que instalar nada primero.</p>
+          <p class="card-why"><strong>No confundir con Remmina</strong> (Nivel 3, ya probado y retirado): Remmina es un cliente RDP/VNC para que el <em>usuario</em> se conecte él mismo hacia fuera, en la dirección opuesta a lo que describe este punto — un agente para que <em>Solwed</em> entre al equipo del cliente, tipo TeamViewer/AnyDesk/RustDesk.</p>
           <ol class="steps">
             <li><p>Preinstala el cliente de soporte remoto (agente propio, o algo tipo RustDesk servido desde vuestro repo del punto anterior) con su configuración apuntando ya al servidor de Solwed en <code>/etc/solwed/remote-support.conf</code>.</p></li>
             <li><p>Registra el servicio pero <strong>no lo actives por defecto</strong>:</p>
@@ -832,19 +860,74 @@ update-locale LANG=es_ES.UTF-8</code></pre>
 
       <hr class="divider" />
 
+      <section class="level" id="bugs-conocidos">
+        <div class="level-header">
+          <h2 class="level-title">Bugs conocidos de la plataforma</h2>
+        </div>
+        <p class="level-sub">Tres bugs de AnduinOS/Cubic/GNOME, no de la personalización de Solwed — ninguno da un error visible al fallar, así que hay que comprobarlos activamente, no esperar a que avisen.</p>
+
+        <article class="card" id="bug-efi">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Crítico — comprobar en cada Generate</span></div>
+          <h3 class="card-title">EFI grub.cfg embebido — kernel panic tras instalar</h3>
+          <p class="card-why">Afecta a <em>cualquier</em> reempaquetado de AnduinOS con Cubic, modificado o no — no es un bug de la personalización de Solwed.</p>
+          <ol class="steps">
+            <li><p>El <code>EFI/efiboot.img</code> del ISO (dentro de <code>custom-disk/EFI/efiboot.img</code> del proyecto — no confundir con <code>partition-2.img</code> en la raíz del proyecto, que es una copia sin usar por Generate) trae un <code>EFI/BOOT/grub.cfg</code> minúsculo que hace <code>search.fs_uuid &lt;uuid-fijo&gt; root</code> y luego carga un <code>grub.cfg</code> por ruta absoluta literal de la máquina de build de AnduinOS.</p></li>
+            <li><p>Ese UUID se deriva del timestamp de creación del ISO9660 — cambia en cada repack (Cubic o cualquier otro), la búsqueda falla, <code>root</code> queda sin definir, y GRUB cae a un default roto que busca <code>/casper/initrd</code> (sin <code>.gz</code>) → <code>error: file '/casper/initrd' not found</code> → panic.</p></li>
+            <li><p><strong>Fix:</strong> sobrescribir ese <code>grub.cfg</code> embebido con la misma búsqueda robusta por archivo marcador que ya usa el resto del ISO:</p>
+              <pre><code>search --set=root --file /anduinos
+set prefix=($root)/isolinux/boot/grub
+configfile $prefix/grub.cfg</code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Un Generate puede revertir este fix en silencio</strong> si Cubic reconstruye el <code>efiboot.img</code> final desde el archivo fuente equivocado. Verifica siempre extrayendo el <code>.iso</code> ya generado y comprobando el <code>grub.cfg</code> embebido de verdad, no solo el archivo fuente del proyecto.</div>
+        </article>
+
+        <article class="card" id="bug-apparmor">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Crítico — solo en sistema instalado</span></div>
+          <h3 class="card-title">AppArmor bwrap-userns-restrict — wallpaper e iconos en negro</h3>
+          <p class="card-why">Solo se manifiesta tras instalar (Ubiquity), nunca en modo live — fácil de no detectar si solo pruebas en live.</p>
+          <ol class="steps">
+            <li><p>Síntoma: GDM arranca con fondo negro y cero iconos (dash/escritorio/panel), pero las apps con su propio decodificador de imagen (Firefox) renderizan bien.</p></li>
+            <li><p>Causa real: el perfil AppArmor <code>bwrap-userns-restrict</code> (su sub-perfil <code>unpriv_bwrap</code>) deniega <code>CAP_SYS_ADMIN</code> a <code>bwrap.real</code> por diseño — rompe cualquier decodificación de imagen en sandbox (gdk-pixbuf/glycin: wallpaper, tema del shell, iconos) en todo el sistema. Confirmado que es un rough edge de AnduinOS/Ubuntu stock, no una regresión de Solwed (idéntico byte a byte en la ISO de referencia limpia).</p></li>
+            <li><p><strong>Fix</strong> — mismo mecanismo de override que ya usa AnduinOS para <code>usr.sbin.sssd</code>, cargar el perfil en modo complain (audita, no bloquea):</p>
+              <pre><code>ln -s /etc/apparmor.d/bwrap-userns-restrict \
+      /etc/apparmor.d/force-complain/bwrap-userns-restrict</code></pre>
+            </li>
+          </ol>
+        </article>
+
+        <article class="card" id="bug-bwrap-wrapper">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Crítico — mismo mecanismo que el bug anterior, causa distinta</span></div>
+          <h3 class="card-title">Wrapper de /usr/bin/bwrap — apps con sandbox de imagen mueren al abrir</h3>
+          <p class="card-why">Síntoma: LibreOffice muestra el splash y se cierra solo ~1s después, sin ventana, sin error. Puede reaparecer en cualquier app que use el pipeline sandboxed de glycin (decodificación de imagen GTK moderna), no solo LibreOffice.</p>
+          <ol class="steps">
+            <li><p><code>/usr/bin/bwrap</code> es un script (<code>anduinos-bwrap-hack</code>, "silencia fallos de bwrap en squashfs live") que hace <code>/usr/bin/bwrap.real "$@" 2&gt;/dev/null || true</code> — un <code>fork+wait</code> extra en vez de un <code>exec</code> directo.</p></li>
+            <li><p>El loader SVG de glycin se invoca con file descriptors concretos (<code>--seccomp &lt;fd&gt;</code>, <code>--dbus-fd &lt;fd&gt;</code>) que el proceso llamador espera que sobrevivan hasta el hijo. La capa extra de fork del wrapper no los conserva intactos → el loader muere en ~10ms sin llegar a su propio código, y el wrapper enmascara el fallo real (<code>2&gt;/dev/null || true</code>).</p></li>
+            <li><p><strong>Fix</strong> — sustituir el cuerpo del wrapper por un <code>exec</code> directo (sin fork intermedio, todos los fd pasan intactos, y ya no se enmascara el código de salida real):</p>
+              <pre><code>#!/bin/sh
+exec /usr/bin/bwrap.real "$@"</code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Verificar tanto en live como instalado antes de dar por cerrado</strong> — el bug hermano de AppArmor de arriba solo se manifestaba instalado, nunca en live, así que "funciona en live" no es evidencia suficiente de que este fix esté completo.</div>
+        </article>
+      </section>
+
+      <hr class="divider" />
+
       <section class="level" id="cubic-workflow">
         <div class="level-header">
           <h2 class="level-title">Flujo de trabajo recomendado en Cubic</h2>
         </div>
         <article class="card">
           <ol class="steps">
-            <li><p>Antes de un bloque de cambios grande (por ejemplo, todo el Nivel 2), guarda el proyecto de Cubic tal cual está — conserva el chroot completo como punto de partida.</p></li>
-            <li><p>Lleva un <code>CHANGELOG.md</code> fuera de la ISO, en tu propia máquina, anotando qué tocaste en cada sesión y por qué — te ahorrará tiempo cuando algo falle tres pasos después.</p></li>
-            <li><p>De vez en cuando, exporta el chroot completo con un nombre descriptivo como copia de seguridad adicional:</p>
-              <pre><code>tar czf solwed-v0.1-antes-de-plymouth.tar.gz /ruta/al/chroot</code></pre>
-            </li>
-            <li><p>Genera la ISO y arráncala siempre en una VM (QEMU o VirtualBox) para comprobar arranque, login y escritorio <em>antes</em> de encadenar el siguiente bloque de la lista.</p></li>
+            <li><p><strong>El proyecto de Cubic debe vivir en filesystem nativo Linux</strong> (ext4, p. ej. <code>/home/usuario/cubic-projects/...</code>), <strong>nunca bajo <code>/mnt/c/</code></strong> en WSL — el montaje 9p de Windows no puede representar nodos de dispositivo/permisos reales, y el paso "Extract" de Cubic falla en silencio ahí (comprueba <code>is_success_extract = True</code> en <code>cubic.conf</code> si algo huele mal desde el principio).</p></li>
+            <li><p><strong>Acumula varios cambios antes de generar un ISO nuevo</strong>, no generes tras cada micro-fix — Generate es una reconstrucción completa y probar en hardware real cuesta tiempo de verdad. Genera solo cuando el usuario lo pida, o cuando un fix sea de riesgo suficiente (clase kernel-panic) como para aislarlo en su propio boot-test.</p></li>
+            <li><p><strong>Distingue qué corre dónde:</strong> comandos que solo tocan archivos bajo <code>custom-root/</code> pueden ir con <code>sudo</code> normal desde el host; comandos que dependen del entorno del sistema objetivo en sí (<code>apt-get</code>, <code>update-initramfs</code>, <code>dconf update</code>, <code>glib-compile-schemas</code>, cualquier cosa que necesite systemd/dpkg del chroot) van en la terminal <em>dentro</em> del chroot de Cubic (<em>Customize → Terminal</em>), donde ya eres root sin sudo.</p></li>
+            <li><p><strong>No te fíes de "el comando se ejecutó" para nada visual o empaquetado en initramfs</strong> — varios fixes de este proyecto (el logo W., el instalador de Autofirma) parecieron aplicarse y no lo hicieron. Verifica con evidencia dura: fecha de modificación + tamaño, comparación byte a byte contra una prueba local, y para cualquier cosa dentro de initramfs, extráelo (<code>unmkinitramfs</code>) y compara el asset embebido contra el del chroot.</p></li>
+            <li><p>Screenshots de depuración del usuario llegan como <code>.HEIC</code> sueltos en <code>Capturas Errores/</code> — convierte con <code>heif-convert</code> (paquete <code>libheif-examples</code>) antes de leerlos.</p></li>
+            <li><p>Genera la ISO y arráncala siempre en una VM o hardware real (el proyecto usa un Dell Latitude 5490) para comprobar arranque, login y escritorio <em>antes</em> de encadenar el siguiente bloque — y prueba tanto en modo live como tras una instalación real, porque al menos dos bugs de este proyecto (AppArmor bwrap, wrapper de bwrap) solo se manifestaban instalado, nunca en live.</p></li>
           </ol>
+          <div class="tip">Si Cubic no abre desde una terminal Warp en WSLg, sospecha primero de una ventana fantasma <code>[WARN:COPY MODE] cubic (...)</code> sin proceso real detrás (visto en este proyecto) antes de asumir un bug real de Cubic — cerrar la ventana fantasma y relanzar desde una Warp nueva lo resuelve.</div>
         </article>
       </section>
 
