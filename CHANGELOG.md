@@ -376,3 +376,28 @@ Usuario preguntó si había más cosas de AnduinOS que pudieran romper el sistem
 ## Alpha 4.2.0 — confirmada en real (2026-07-14)
 
 Generada e instalada con todo lo de este día (login GDM azul→amarillo, tema de GRUB con el fondo de hexágonos, RustDesk anclado, ambos guardianes de APT instalados). Usuario: "parece que todo está en orden". Cierra el lote abierto tras el bug de reversión de Plymouth — pendiente de una actualización real futura para confirmar que los guardianes actúan cuando de verdad hace falta.
+
+## Nivel 4 — servidor de RustDesk (`hbbs`/`hbbr`) desplegado (2026-07-14)
+
+Primer despliegue de infraestructura de servidor del proyecto. Reutilizado el servidor de producción ya existente (`erpsolwed`, Debian 13 trixie, gestionado con CloudPanel) en vez de dedicar una máquina nueva, según lo ya valorado — 12 vCPU/32GB RAM/434GB libres, de sobra para lo que pide RustDesk. Puertos 21115-21119 no chocaban con nada de lo que ya corre ahí (nginx solo usa 80/443).
+
+Desplegado con Docker (script oficial `get.docker.com`) + Docker Compose, `network_mode: host` (recomendación oficial de RustDesk, evita líos de NAT del contenedor) — puertos verificados contra la documentación real de `rustdesk.com/docs`, no adivinados: `21115/tcp` (test de NAT), `21116/tcp+udp` (registro de ID/latido, el único que necesita ambos protocolos), `21117/tcp` (relay de `hbbr`), `21118`/`21119` tcp (soporte de cliente web, opcional, incluidos igualmente). Abiertos en `ufw`. Confirmado con `docker compose ps` (ambos contenedores `Up`) y `ss -tulpn` (los 5 puertos escuchando).
+
+**Sin dominio todavía** — `remoto.solwed.es` no tiene DNS configurado, fuera del alcance inmediato del usuario ahora mismo. Se usa la IP pública directa del servidor (`51.89.21.128`) en la plantilla del cliente mientras tanto. Descartado un reverse proxy de CloudPanel para esto: `hbbs`/`hbbr` hablan TCP/UDP crudo en sus puertos principales, no HTTP, así que el módulo `http` de nginx (lo que expone la UI de CloudPanel) no puede hacerles de proxy — ni falta que hace, el cliente se conecta directo a esos puertos.
+
+**Plantilla de cliente actualizada** (`rustdesk-installer/RustDesk2.toml`): `custom-rendezvous-server`/`relay-server` = la IP, `key` = la clave pública real que generó `hbbs` en su primer arranque (dato público, pensado para repartir a los clientes — no es sensible como la clave privada del incidente del repo APT). Quitado `api-server` de la plantilla: apunta al servidor web de la versión Pro, que no se ha desplegado; dejarlo puesto solo añadiría una llamada fallida más al arrancar el cliente sin aportar nada en la versión OSS.
+
+**Pendiente:** DNS de `remoto.solwed.es` (cuando el usuario pueda) — cambio trivial en la plantilla, no requiere tocar el servidor. Hornear la plantilla actualizada en `/etc/skel/.config/RustDesk/RustDesk2.toml` del chroot para el próximo lote. Repetir la prueba de conexión ya contra este servidor propio (la prueba anterior, exitosa pero con latencia alta, fue contra el servidor público de RustDesk).
+
+## Conexión real confirmada contra el servidor propio + gap de preconfiguración encontrado (2026-07-14)
+
+Con el sistema ya instalado (plantilla horneada en `/etc/skel/`), primera prueba real de RustDesk contra el servidor propio. Primer intento: "la ID no existe" al conectar desde Windows.
+
+**Diagnóstico con evidencia, sin adivinar en ningún paso:**
+- Confirmado que ambos IDs (Solwed OS y Windows) estaban registrados de verdad: `sqlite3 ~/rustdesk-server/data/db_v2.sqlite3 "SELECT id FROM peer;"` los devolvió a los dos. Descartado que fuera un problema de registro.
+- El botón "Exportar configuración" de Windows produjo una cadena que no era base64 estándar. Encontrado el algoritmo real en el propio repo de RustDesk (`flutter/lib/common.dart`, clase `ServerConfig`, vía `gh api search/code` — no adivinado): cadena invertida + base64url de un JSON `{"host","relay","api","key"}`. Decodificada, confirmó que Windows sí tenía el servidor propio correctamente configurado — descartado también eso.
+- Con ambos extremos aparentemente bien configurados y registrados, pero el intento de conexión sin dejar ningún rastro nuevo en el log del servidor (verificado con `docker compose logs --since` para no confundir con log de arranque antiguo), la petición de conexión no estaba llegando a usar el servidor propio en absoluto.
+
+**Resuelto reintroduciendo la configuración a mano** en Configuración de red dentro de la propia app de RustDesk en el Solwed OS (los mismos 3 valores que ya tenía el archivo en disco) — tras eso, nuevo registro en el log y **conexión funcionando**, confirmada por el usuario.
+
+**Causa raíz exacta sin determinar** — el archivo `RustDesk2.toml` heredado de `/etc/skel/` estaba bien escrito y la app sí se registraba con el servidor propio desde el arranque, pero algo no terminaba de aplicarse hasta pasar por la pantalla de ajustes a mano. **Consecuencia práctica documentada en el manual:** cada instalación nueva probablemente necesite ese paso manual una vez, hasta investigarlo a fondo — no bloquea el uso, pero rebaja la promesa de "preconfigurado sin tocar nada". Anotado como pendiente de investigación, no resuelto del todo.
