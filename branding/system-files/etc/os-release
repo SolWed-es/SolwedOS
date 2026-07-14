@@ -1,0 +1,11 @@
+NAME="Solwed OS"
+PRETTY_NAME="Solwed OS 1.0 (Alpha)"
+ID=solwedos
+ID_LIKE=debian
+VERSION="1.0"
+VERSION_ID="1.0"
+VERSION_CODENAME=resolute
+UBUNTU_CODENAME=resolute
+HOME_URL="https://solwed.es"
+SUPPORT_URL="https://solwed.es/contacto"
+BUG_REPORT_URL="https://solwed.es/contacto"

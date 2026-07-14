@@ -427,8 +427,8 @@
       <div class="meta-row">
         <span class="meta-chip">Herramienta: Cubic</span>
         <span class="meta-chip">Base: AnduinOS 2.0.0 (Ubuntu 26.04 "resolute")</span>
-        <span class="meta-chip">Fase: alpha — baseline Alpha 4.0.0</span>
-        <span class="meta-chip">4 niveles · Nivel 1-3 cerrados · Nivel 4 en progreso (soporte remoto + repo APT)</span>
+        <span class="meta-chip">Fase: alpha — baseline Alpha 4.2.0, confirmada en real</span>
+        <span class="meta-chip">4 niveles · Nivel 1-3 cerrados · Nivel 4 en progreso (soporte remoto + repo APT, servidor pendiente)</span>
       </div>
     </div>
   </header>
@@ -634,15 +634,25 @@ mv anduinos.plymouth solwedos.plymouth</code></pre>
         </article>
 
         <article class="card" id="item-grub">
-          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Verificado — sin cambios necesarios</span></div>
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Hecho — Alpha 4.1.1, confirmado en real</span></div>
           <h3 class="card-title">GRUB</h3>
-          <p class="card-why">Fondo, nombre y tiempos de espera del menú de arranque.</p>
-          <p class="card-why">Comprobado en real: <strong>no hizo falta tocar nada aquí</strong>. El menú ya viene oculto por defecto en AnduinOS y el nombre del distribuidor ya sale correcto porque se deriva de <code>/etc/os-release</code> (ver <a href="#item-oslogo">Identidad del sistema</a>) sin necesidad de <code>GRUB_DISTRIBUTOR</code> explícito.</p>
+          <p class="card-why">Fondo, nombre y tiempos de espera del menú de arranque. Inicialmente no hizo falta tocar nada (menú oculto por defecto, distribuidor ya correcto vía <code>/etc/os-release</code>) — ampliado el 2026-07-14 con un tema gráfico de marca y ajustes de comportamiento, a petición del usuario.</p>
+          <ol class="steps">
+            <li><p><strong>Tema gráfico del GRUB instalado</strong> — sintaxis verificada contra el manual oficial de GRUB (<em>Theme file format</em>), no adivinada. Fuente en <code>grub-theme/</code> del repo (<code>theme.txt</code>, <code>background.png</code> = mismo wallpaper oscuro de Solwed, y 3 fuentes <code>.pf2</code>). Fondo con <code>desktop-image-scale-method: stretch</code> (el aspect ratio del wallpaper, 1672×941, ya coincide casi exacto con 16:9), menú de arranque sin iconos ni cajas de pixmap (estilo minimalista, texto plano con resaltado amarillo Solwed <code>#F5E70A</code> en el ítem seleccionado), y una etiqueta con <code>id = "__timeout__"</code> para el contador de cuenta atrás.</p>
+              <p><strong>Fuentes generadas contra el font variable de Ubuntu, no una TTF estática</strong> — <code>Ubuntu-B.ttf</code> en este sistema es en realidad un symlink al font variable <code>Ubuntu[wdth,wght].ttf</code>, sin una instancia "Bold" separada. Resuelto el índice de instancia correcto vía <code>fc-match -f '%{file}:%{index}'  "Ubuntu:bold"</code> (fontconfig, no adivinado) y verificado contra la tabla <code>fvar</code> del propio font con <code>fontTools</code> que ese índice corresponde de verdad a la instancia "Bold" (peso 700) antes de usarlo con <code>grub-mkfont -i &lt;índice&gt;</code>.</p>
+            </li>
+            <li><p><strong>Comportamiento:</strong> <code>GRUB_TIMEOUT_STYLE=menu</code> (visible, antes oculto), <code>GRUB_TIMEOUT=5</code>, <code>GRUB_DEFAULT=0</code> (ya era la entrada de Solwed OS, sin cambios), <code>GRUB_GFXMODE=1920x1080,auto</code> para que el tema tenga resolución donde renderizarse.</p></li>
+            <li><p><strong>Aplicar:</strong> dentro del terminal chroot de Cubic, tras copiar <code>grub-theme/</code> a <code>/root/</code> desde el host:</p>
+              <pre><code>bash scripts/level2-04-grub-theme.sh</code></pre>
+              <p>No hace falta <code>update-grub</code> en el chroot — no hay disco de destino real ahí; el <code>grub.cfg</code> del sistema instalado lo genera Ubiquity durante la instalación real, leyendo este mismo <code>/etc/default/grub</code>. Solo verificable tras instalar, no en modo live.</p>
+            </li>
+            <li><p><strong>Idioma por defecto del menú del ISO en vivo — mecanismo totalmente distinto, ya aplicado.</strong> El menú que aparece al arrancar el propio ISO (submenú "Try or Install Solwed OS" con un idioma por <code>menuentry</code>) no sale de <code>/etc/default/grub</code> ni se genera con <code>update-grub</code> — es un <code>grub.cfg</code> de texto plano escrito a mano, duplicado byte a byte en dos sitios del árbol del ISO (<code>custom-disk/boot/grub/grub.cfg</code> y <code>custom-disk/isolinux/grub.cfg</code>, para arranque EFI y BIOS respectivamente). Para que "Spanish" (locale <code>es_ES.UTF-8</code>) sea la entrada resaltada por defecto, sintaxis de índice compuesto de GRUB para submenús anidados: <code>set default="0&gt;11"</code> (elemento 0 del menú raíz = el propio submenú, elemento 11 dentro de él = Spanish, contando desde 0). Aplicado directamente en ambos archivos — a diferencia de <code>custom-root/</code>, <code>custom-disk/</code> no es de root, este cambio no necesitaba chroot ni <code>sudo</code>.</p></li>
+          </ol>
           <div class="aviso"><strong>El verdadero bug de esta zona no fue de configuración, fue estructural</strong> — un fallo del propio proceso de reempaquetado de Cubic sobre AnduinOS que rompe el arranque EFI en cualquier ISO reconstruida, modificada o no. Ver <a href="#bugs-conocidos">Bugs conocidos de la plataforma → EFI grub.cfg</a>.</div>
         </article>
 
         <article class="card" id="item-login">
-          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Hecho — Alpha 2.4 a 2.5</span></div>
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge done">✓ Hecho — Alpha 2.4 a 2.5, refrescado y confirmado en Alpha 4.1.1</span></div>
           <h3 class="card-title">Pantalla de login</h3>
           <p class="card-why">Fondo y logo en la pantalla previa a iniciar sesión. Esta distro <strong>solo trae GDM3</strong> — no hay LightDM que comprobar ni entre el que elegir.</p>
           <ol class="steps">
@@ -650,6 +660,10 @@ mv anduinos.plymouth solwedos.plymouth</code></pre>
               <pre><code>anduinos-gdm-set-wallpaper /usr/share/backgrounds/solwed/solwed-oscuro.png</code></pre>
               <p>(paquete <code>anduinos-gdm3-wallpaper</code>), que hace <code>update-alternatives</code> sobre <code>/usr/share/gnome-shell/gdm-theme.gresource</code> internamente. Los flags <code>--darken</code>/<code>--blur</code> necesitan <code>imagemagick</code> (no instalado por defecto) — omitidos porque el wallpaper oscuro ya tiene contraste de sobra.</p>
             </li>
+          </ol>
+          <div class="aviso"><strong>El fondo del login queda horneado en un binario compilado, no se lee en vivo</strong> — si el PNG fuente (<code>solwed-oscuro.png</code>) se sustituye más adelante, el login sigue mostrando el contenido antiguo hasta volver a ejecutar <code>anduinos-gdm-set-wallpaper</code>. Ver <a href="#bug-gdm-stale-cache">Bugs conocidos de la plataforma → Caché del fondo de login</a>.</div>
+          <div class="aviso"><strong>La misma herramienta también sobreescribe el CSS de todo el chrome del login</strong> (botones de WiFi/Accesibilidad/Teclado) con un archivo azul heredado de AnduinOS, sin distinguir claro/oscuro — de ahí que el interruptor de "Estilo" no haga nada visible. Ver <a href="#bug-gdm-fluent-css">Bugs conocidos de la plataforma → CSS del login</a>.</div>
+          <ol class="steps">
             <li><p><strong>Logo/badge pequeño del login</strong> (independiente del fondo) — se controla en <code>/etc/gdm3/greeter.dconf-defaults</code> (formato ini, no el mecanismo de perfil dconf — este sistema no tiene <code>/etc/dconf/profile/gdm</code>):</p>
               <pre><code>[org/gnome/login-screen]
 logo='/usr/share/solwed/gdm-logo.png'</code></pre>
@@ -941,6 +955,78 @@ exec /usr/bin/bwrap.real "$@"</code></pre>
             </li>
           </ol>
           <div class="aviso"><strong>Verificar tanto en live como instalado antes de dar por cerrado</strong> — el bug hermano de AppArmor de arriba solo se manifestaba instalado, nunca en live, así que "funciona en live" no es evidencia suficiente de que este fix esté completo.</div>
+        </article>
+
+        <article class="card" id="bug-gdm-stale-cache">
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Medio — solo si el wallpaper fuente cambia</span></div>
+          <h3 class="card-title">Fondo del login (GDM) horneado en caché — no se actualiza solo</h3>
+          <p class="card-why">Mismo patrón que <code>icon-theme.cache</code>, <code>gschemas.compiled</code> o el initramfs: un binario compilado a partir de un archivo fuente, que nadie recuerda regenerar cuando el fuente cambia. Encontrado el 2026-07-14 en Alpha 4.0.0: la pantalla de login seguía mostrando el wallpaper antiguo de baja resolución mucho después de haberlo sustituido por el nuevo.</p>
+          <ol class="steps">
+            <li><p><code>anduinos-gdm-set-wallpaper</code> no lee el PNG del fondo en cada arranque — lo compila <strong>una sola vez</strong> en <code>/var/lib/anduinos-gdm3-wallpaper/solwedos-theme.gresource</code>, registrado vía <code>update-alternatives</code>. Cuando <code>solwed-oscuro.png</code> se sustituyó (mismo nombre de archivo, contenido nuevo de mayor resolución, ver el punto de wallpapers del Nivel 1) nadie volvió a ejecutar el compilador — confirmado por mtime: el PNG quedó más nuevo que el <code>.gresource</code>.</p></li>
+            <li><p>La pantalla de <strong>bloqueo de sesión</strong> (Super+L, ya logueado) no tiene este problema — reutiliza <code>org.gnome.desktop.background</code> en vivo desde el PNG, no pasa por ningún binario compilado. Solo afecta al login GDM previo a entrar.</p></li>
+            <li><p><strong>Fix:</strong> volver a ejecutar el script ya preparado, dentro del terminal chroot de Cubic (es idempotente, seguro de repetir):</p>
+              <pre><code>bash scripts/level2-02-gdm-login.sh</code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Regla general:</strong> cualquier vez que se sustituya <code>solwed-claro.png</code>/<code>solwed-oscuro.png</code> por una versión nueva, volver a ejecutar este script antes del siguiente Generate — si no, el login se queda desincronizado del resto del sistema en silencio, sin error visible.</div>
+          <div class="tip"><strong>Cerrado y confirmado — Alpha 4.1.1 (2026-07-14).</strong> Usuario probó en real: "todo funciona sin problema".</div>
+        </article>
+
+        <article class="card" id="bug-gdm-fluent-css">
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Medio — cosmético, heredado de AnduinOS stock</span></div>
+          <h3 class="card-title">CSS del login — botones azules y el interruptor de "Estilo" no hace nada</h3>
+          <p class="card-why">Encontrado el 2026-07-14 tras generar Alpha 4.1.0: en la pantalla de login (GDM, sin sesión iniciada) los botones de WiFi/Accesibilidad/Teclado salen en azul en vez de amarillo Solwed, y el interruptor de modo claro/oscuro no cambia nada visualmente. <strong>No es una regresión de Solwed</strong> — el archivo responsable es idéntico byte a byte al de la ISO de referencia limpia de AnduinOS, sin tocar desde el primer día (2026-07-07). No se notó antes porque hasta Alpha 3.x todo el sistema seguía siendo azul; con el resto ya recoloreado a amarillo, destaca.</p>
+          <ol class="steps">
+            <li><p><code>anduinos-gdm-set-wallpaper</code> (la misma herramienta del fondo de login, ver arriba) tiene un paso "Inject Fluent Theme" que sobreescribe <strong>todos</strong> los CSS extraídos del tema base con un único archivo estático, <code>/usr/share/anduinos-gdm3-wallpaper/fluent-gnome-shell/gnome-shell.css</code> — con el azul de acento de AnduinOS horneado dentro, y sin distinguir variante clara/oscura (una sola hoja de estilo sirve para ambas).</p></li>
+            <li><p><strong>Fix del color — aplicado.</strong> Mismo script que el recoloreo de iconos (<code>scripts/recolor_svg_icons.py</code>, funciona sobre cualquier texto con hex, no solo SVG) contra el CSS fuente, luego recompilar:</p>
+              <pre><code>sudo python3 scripts/recolor_svg_icons.py /ruta/a/custom-root/usr/share/anduinos-gdm3-wallpaper/fluent-gnome-shell/gnome-shell.css
+# luego, dentro del terminal chroot:
+bash scripts/level2-02-gdm-login.sh</code></pre>
+              <p>Recolorea los ~11 tonos de azul (hue ~213-215°) a amarillo Solwed, deja intactos grises y los rojos/naranjas de estado de error.</p>
+            </li>
+            <li><p><strong>El interruptor de "Estilo" — investigado, sin fix seguro.</strong> Verificado contra el código fuente real de GNOME Shell (<code>js/ui/status/darkMode.js</code>): se registra incondicionalmente dentro del binario compilado de <code>gnome-shell</code>, no depende de ningún <code>.gresource</code> ni CSS que toquemos, solo lee/escribe la clave GSettings <code>org.gnome.desktop.interface color-scheme</code>. Ocultarlo exigiría parchear ese binario o cargar una extensión propia en la pantalla de login. <strong>Decisión del usuario (2026-07-14): dejarlo como limitación conocida</strong>, no vale el riesgo de tocar mecanismos a ese nivel por un interruptor cosmético en una pantalla pre-login.</p></li>
+          </ol>
+          <div class="tip"><strong>Color cerrado y confirmado — Alpha 4.1.1 (2026-07-14).</strong> Usuario probó en real: "todo funciona sin problema". El interruptor de "Estilo" sigue sin hacer nada visible, por diseño (ver arriba) — no es un fallo pendiente, es la limitación documentada y aceptada.</div>
+        </article>
+
+        <article class="card" id="bug-alternatives-revert">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Crítico — se repite en cada actualización futura</span></div>
+          <h3 class="card-title">Plymouth y fondo de login revierten a AnduinOS tras actualizar paquetes</h3>
+          <p class="card-why">Encontrado el 2026-07-14: usuario actualizó el sistema desde GNOME Software (Alpha 4.1.1 instalada) y el splash de arranque volvió a mostrar "AnduinOS" en vez de la marca "W." de Solwed. No es un fallo puntual — es el comportamiento normal y esperado de los paquetes de AnduinOS, se repetirá en <strong>cualquier</strong> actualización futura de los mismos, venga de <code>apt</code>, de GNOME Software (PackageKit) o de <code>unattended-upgrades</code>.</p>
+          <ol class="steps">
+            <li><p><strong>Causa raíz, verificada contra el <code>postinst</code> real de los paquetes</strong> (no supuesta): tanto <code>plymouth-anduinos</code> como <code>anduinos-gdm3-wallpaper</code> hacen <code>update-alternatives --set</code> <strong>incondicional</strong> a su propio tema cada vez que el paquete se reconfigura (<code>if [ "$1" = "configure" ]</code> — instalación, reinstalación, o cualquier actualización). No es un <code>--install</code> pasivo que respetaría una elección manual ya hecha; es un <code>--set</code> forzado que la pisa sin comprobar nada. Confirmado en ambos paquetes de la ISO de referencia limpia de AnduinOS — comportamiento de fábrica, no una regresión de Solwed.</p></li>
+            <li><p><strong>Arreglo inmediato en una máquina ya afectada</strong> (no hace falta esperar a una ISO nueva):</p>
+              <pre><code>sudo update-alternatives --set default.plymouth /usr/share/plymouth/themes/solwedos/solwedos.plymouth
+sudo update-initramfs -u -k all</code></pre>
+            </li>
+            <li><p><strong>Prevención permanente — hook de APT (nuevo mecanismo en este proyecto).</strong> <code>alternatives-guard/reassert-alternatives.sh</code> comprueba tras cada operación de <code>dpkg</code>/<code>apt</code> si <code>default.plymouth</code> o <code>gdm-theme.gresource</code> han vuelto a apuntar a AnduinOS y, si es así, los reasigna a Solwed y regenera el initramfs — barato de ejecutar cuando no hace falta (un par de <code>readlink -f</code>). Registrado como <code>DPkg::Post-Invoke</code> en <code>/etc/apt/apt.conf.d/99-solwedos-alternatives-guard</code>, que se dispara pase lo que pase por dpkg por debajo — incluida GNOME Software, que usa PackageKit sobre <code>apt</code>. Instalar con:</p>
+              <pre><code>bash scripts/level2-05-alternatives-guard.sh</code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Solo verificable con una actualización real posterior</strong> — igual que cualquier fix de este tipo, no hay forma de probarlo dentro del chroot (no hay ningún paquete que actualizar ahí). La próxima vez que el sistema instalado reciba una actualización de <code>plymouth-anduinos</code> o <code>anduinos-gdm3-wallpaper</code>, confirmar que el splash/login siguen en amarillo Solwed después.</div>
+        </article>
+
+        <article class="card" id="bug-branding-revert-audit">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Crítico — misma familia que el bug anterior, alcance ampliado</span></div>
+          <h3 class="card-title">Auditoría completa: qué más puede revertir una actualización de AnduinOS</h3>
+          <p class="card-why">Tras el bug de Plymouth/GDM de arriba, se auditó <strong>todo</strong> lo demás que este proyecto ha personalizado, cruzando cada ruta contra <code>var/lib/dpkg/info/*.list</code> y <code>*.conffiles</code> de la ISO de referencia limpia — no por sospecha, con evidencia real. Resultado: de todo lo tocado en este proyecto, <strong>solo <code>/etc/casper.conf</code> está protegido como conffile de verdad.</strong> Todo lo demás son archivos de paquete normales que dpkg sobreescribe sin negociar en cualquier actualización relevante.</p>
+          <ol class="steps">
+            <li><p><strong>Superficie de riesgo real, por paquete:</strong></p>
+              <ul>
+                <li><code>anduinos-fluent-icon-theme</code> — los 13 iconos de apps recoloreados <em>y</em> los dos temas de cursor completos</li>
+                <li><code>anduinos-appearance</code> — el icono de la propia app de apariencia</li>
+                <li><code>gnome-shell-extension-arcmenu</code> — el icono "W." del botón de inicio <em>y</em> todo <code>10-arcmenu.conf</code> (menú de inicio curado entero: carpeta LibreOffice, RustDesk, Timeshift, Okular, Autofirma, orden de anclados)</li>
+                <li><code>anduinos-dconf-defaults</code> — tema de GNOME Shell, logo pequeño del login GDM, tema GTK/iconos por defecto, orden de favoritos, teclado español, activación del widget del tiempo</li>
+                <li><code>grub2-common</code> — todo <code>/etc/default/grub</code> (tema, timeout, entrada por defecto)</li>
+                <li><code>base-files</code> — <code>/etc/os-release</code> y <code>/etc/lsb-release</code>, la identidad entera del sistema; el más peligroso de todos, del que dependen GRUB y las plantillas de PPA de python-apt</li>
+              </ul>
+            </li>
+            <li><p><strong>Fix — mismo patrón de guardián que Plymouth/GDM, generalizado.</strong> Copias conocidas-buenas de cada archivo/directorio en <code>branding/icons/</code>, <code>branding/cursors/</code>, <code>branding/panel/</code>, <code>branding/system-files/</code> del repo (extraídas del chroot ya verificado correcto, no re-derivadas). <code>alternatives-guard/reassert-branding.sh</code> compara cada uno contra el sistema en vivo (<code>cmp</code>/<code>diff -rq</code>, barato) y restaura solo lo que ha cambiado, luego dispara únicamente lo necesario: <code>gtk-update-icon-cache</code> si tocó iconos, <code>dconf update</code> si tocó overrides de dconf, <code>glib-compile-schemas</code> si tocó el gschema, <code>update-grub</code> si tocó <code>/etc/default/grub</code>. Registrado como segundo <code>DPkg::Post-Invoke</code> en <code>/etc/apt/apt.conf.d/99-solwedos-branding-guard</code>, separado del de alternativas para poder desactivar uno sin el otro.</p>
+              <p>Lógica de restauración probada de forma aislada antes de integrarla (caso distinto → restaura; caso igual → no hace nada; fuente ausente → no falla). Instalar con:</p>
+              <pre><code>bash scripts/level2-06-branding-guard.sh</code></pre>
+            </li>
+          </ol>
+          <div class="aviso">Deliberadamente <strong>no</strong> cubre las diapositivas de Ubiquity (<code>anduinos-installer-config</code>) — solo son relevantes en el medio de instalación en vivo, no en un sistema ya instalado recibiendo actualizaciones, que es el escenario real de este bug. Solo verificable con una actualización real de alguno de estos paquetes.</div>
         </article>
       </section>
 

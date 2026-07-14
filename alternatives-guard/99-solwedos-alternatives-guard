@@ -1,0 +1,9 @@
+// Solwed OS — reafirma el tema de Plymouth y el fondo de login GDM si un
+// postinst de AnduinOS los ha revertido a los suyos (plymouth-anduinos y
+// anduinos-gdm3-wallpaper hacen `update-alternatives --set` incondicional
+// en cada reconfigure). Se dispara tras cualquier operación de dpkg/apt,
+// venga de `apt`, de GNOME Software (PackageKit) o de donde sea.
+// `|| true` para que un fallo aquí nunca bloquee una actualización real.
+DPkg::Post-Invoke {
+    "test -x /usr/lib/solwed/reassert-alternatives.sh && /usr/lib/solwed/reassert-alternatives.sh || true";
+};

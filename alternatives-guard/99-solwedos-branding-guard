@@ -1,0 +1,10 @@
+// Solwed OS — reafirma iconos/cursores/dconf/GRUB/identidad del sistema si
+// un postinst de AnduinOS los ha revertido (ninguno de estos archivos está
+// declarado como conffile por su paquete propietario, verificado contra
+// var/lib/dpkg/info/*.conffiles — dpkg los sobreescribe sin avisar en cada
+// actualización relevante). Complementa a 99-solwedos-alternatives-guard,
+// que solo cubre Plymouth y el fondo de login GDM.
+// `|| true` para que un fallo aquí nunca bloquee una actualización real.
+DPkg::Post-Invoke {
+    "test -x /usr/lib/solwed/reassert-branding.sh && /usr/lib/solwed/reassert-branding.sh || true";
+};

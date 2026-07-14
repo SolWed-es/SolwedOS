@@ -1,0 +1,42 @@
+# Tema de GRUB — Solwed OS
+# Sintaxis verificada contra el manual oficial de GRUB (Theme file format),
+# no adivinada. Editar aquí y volver a copiar con scripts/level2-04-grub-theme.sh,
+# no a mano dentro del chroot.
+
+title-text: "Solwed OS"
+title-font: "Solwed Grub Title Regular 30"
+title-color: "#F5E70A"
+
+desktop-image: "background.png"
+desktop-image-scale-method: "stretch"
+desktop-color: "#000000"
+
++ boot_menu {
+    left = 15%
+    top = 22%
+    width = 70%
+    height = 40%
+
+    item_font = "Solwed Grub Menu Regular 18"
+    item_color = "#e6e6e6"
+    selected_item_font = "Solwed Grub Menu Regular 18"
+    selected_item_color = "#F5E70A"
+
+    icon_width = 0
+    icon_height = 0
+    item_height = 36
+    item_padding = 10
+    item_spacing = 6
+
+    scrollbar = false
+}
+
++ label {
+    id = "__timeout__"
+    top = 66%
+    left = 0
+    width = 100%
+    align = "center"
+    font = "Solwed Grub Small Regular 13"
+    color = "#c9c9c9"
+}
