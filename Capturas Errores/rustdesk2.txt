@@ -1,0 +1,26 @@
+cat .config/RustDesk/RustDesk2.toml 
+rendezvous_server = ''
+
+[options]
+custom-rendezvous-server = '51.89.21.128'
+relay-server = '51.89.21.128'
+key = 'jPMyhXCl14aI1wJBW8fIlADfcv3H1vWgs2NoZXxJAu0='
+stat .config/RustDesk/RustDesk2.toml 
+  Archivo: .config/RustDesk/RustDesk2.toml
+  tamaño: 159       	Bloques: 8          ES Bloque: 4096   regular file
+Dispositivo: 8,2	Inodo: 9437194     Enlaces: 1
+Acceso: (0644/-rw-r--r--)  Uid: ( 1000/    test)   Gid: ( 1000/    test)
+Acceso: 2026-07-14 14:26:56.297834692 +0200
+Modificar: 2026-07-14 14:18:30.762782406 +0200
+Cambiar: 2026-07-14 14:18:30.762782406 +0200
+ Nacimiento: 2026-07-14 14:18:30.761729015 +0200
+test@test-Latitude-5490:~$ stat .config/RustDesk/
+  Archivo: .config/RustDesk/
+  tamaño: 4096      	Bloques: 8          ES Bloque: 4096   directory
+Dispositivo: 8,2	Inodo: 9437193     Enlaces: 2
+Acceso: (0755/drwxr-xr-x)  Uid: ( 1000/    test)   Gid: ( 1000/    test)
+Acceso: 2026-07-14 14:26:54.920827584 +0200
+Modificar: 2026-07-14 14:18:30.761729015 +0200
+Cambiar: 2026-07-14 14:18:30.761729015 +0200
+ Nacimiento: 2026-07-14 14:18:30.760728985 +0200
+
