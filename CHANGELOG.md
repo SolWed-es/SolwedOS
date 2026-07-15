@@ -435,3 +435,22 @@ Segundo punto de Nivel 4 (tras RustDesk) llevado a servidor real, sobre `erpsolw
 Añadido `apt-repo/publish-update.sh`, script de referencia para publicar futuros `.deb` sin downtime (`repo add` + `snapshot create` + `publish switch`).
 
 **Único pendiente real:** DNS de `repo.solwed.es` → `51.89.21.128`, cuando el usuario pueda — y en ese momento, pedir el certificado real.
+
+## Acceso desatendido RustDesk en equipo interno — investigado, bug real de Wayland encontrado (2026-07-15)
+
+Usuario pidió activar el modo "Conexión a Escritorio Remoto"-style (sin autenticación ni consentimiento del cliente) para un equipo interno de oficina, no para clientes — caso distinto del acceso desatendido que este punto del manual pide no activar por defecto.
+
+Confirmado que el servicio no se activa solo con `systemctl enable rustdesk` (mismo bug ya documentado el 2026-07-13/14: el `postinst` nunca copia el fichero de la unidad). Se activa a mano copiando la plantilla que el paquete ya trae:
+```
+sudo cp /usr/share/rustdesk/files/systemd/rustdesk.service /usr/lib/systemd/system/rustdesk.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now rustdesk
+```
+
+**Bug real de Wayland encontrado al probarlo, no achacable a Solwed OS:** en Wayland, la captura de pantalla pasa obligatoriamente por `xdg-desktop-portal`, que exige confirmación humana la primera vez ("Seleccione la pantalla que se compartirá") — X11 no tenía esta barrera. RustDesk soporta un `restore_token` (confirmado en el código fuente, `libs/scrap/src/wayland/pipewire.rs`) que evita repetir la confirmación mientras la sesión de GNOME siga activa — pero al bloquear con `Super+L` (o por inactividad/suspensión), el portal revoca la sesión de PipeWire y vuelve a pedir confirmación desde cero. Confirmado que es un bug conocido y ya reportado aguas arriba (PR #14384 de `rustdesk/rustdesk`, sin mergear a día de hoy) — no solucionable desde la configuración de Solwed OS.
+
+**Solución práctica adoptada mientras no llegue el fix upstream:** dejar la sesión de usuario permanentemente iniciada (con su contraseña normal, sin necesidad de autologin) y desactivar todo lo que pueda bloquearla o suspenderla — suspensión automática (Configuración → Energía) y bloqueo/apagado de pantalla por inactividad (Configuración → Privacidad → Bloqueo de pantalla, o `gsettings set org.gnome.desktop.session idle-delay 0` + `gsettings set org.gnome.desktop.screensaver lock-enabled false` si la GUI no ofrece "Nunca"). Queda como responsabilidad del usuario del equipo no pulsar `Super+L` manualmente.
+
+Autologin (`/etc/gdm3/custom.conf`) queda como mejora aparte, solo para el caso de que el equipo se reinicie solo (corte de luz, actualización) — no relacionado con el bug de bloqueo.
+
+Manual (`#item-support`) actualizado con todo el hallazgo, sin tocar el resto de la card ya cerrada.
