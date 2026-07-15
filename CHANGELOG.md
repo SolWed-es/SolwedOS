@@ -415,3 +415,23 @@ Causa raíz del gap dejado abierto el día anterior, encontrada leyendo el códi
 **Consulta del usuario — ¿se pueden atender varias conexiones simultáneas a distintos clientes con Solwed OS?** Revisado el código de `rustdesk-server`: cada conexión corre en su propia tarea async (`tokio::spawn`), sin límite de sesiones concurrentes en la versión OSS (ese límite solo existe en la versión Pro, como restricción de licencia). Confirmado que sí, sin tope técnico — el único límite real sería de recursos del servidor si varias sesiones acaban usando relay en vez de P2P directo.
 
 **Único pendiente real de este punto:** DNS de `remoto.solwed.es` → IP del servidor, cuando el usuario pueda — cambio trivial en la plantilla, no toca el servidor.
+
+## Repositorio APT propio — servidor desplegado, Nivel 4 (2026-07-15)
+
+Segundo punto de Nivel 4 (tras RustDesk) llevado a servidor real, sobre `erpsolwed` (mismo servidor que RustDesk). Clave GPG dedicada (generada el 2026-07-13, ver la entrada de aquel día) importada al keyring de `root` **copiándola directamente desde el escritorio de Windows del usuario al servidor por SCP**, sin leerla ni imprimirla en ningún momento — misma norma aplicada tras el incidente de exposición de aquel día.
+
+**aptly 1.6.3** instalado desde su repo oficial (`repo.aptly.info`, `trixie`). Repo `solwed` creado (`distribution=resolute`, `component=main`) y publicado firmado (`aptly publish snapshot -gpg-key=... -architectures=amd64`), verificado con `gpg --verify` contra el fingerprint real antes de darlo por bueno.
+
+**Bug de permisos encontrado y corregido durante el despliegue:** el `root_dir` por defecto de aptly (`~/.aptly`) cae bajo `/root` para el usuario `root`, con permisos `700` — el usuario que corre nginx en este servidor (`clp`, vía CloudPanel) nunca podría atravesarlo para servir los ficheros. Movido a `/srv/solwed-apt` (permisos normales, fuera de `/home` y `/root`) con un symlink desde `/root/.aptly` para que los comandos de `aptly` sigan funcionando sin flags extra.
+
+**Sitio publicado vía CloudPanel** (`clpctl site:add:static --domainName=repo.solwed.es`), repuntando el `root` del vhost de nginx directamente a `/srv/solwed-apt/public` (con `autoindex on`) en vez de copiar ficheros al `htdocs` por defecto — cada publicación futura se sirve sola.
+
+**Gotcha real encontrado al probar:** este servidor corre dos instancias de nginx en paralelo (la de CloudPanel y la del sistema, en `/etc/nginx/nginx.conf`) — la segunda es la que de verdad tiene los certificados/vhosts de todos los sitios. Recargar la instancia de CloudPanel no aplicaba el cambio del vhost; hizo falta `sudo nginx -s reload` sin `-c` (la instancia por defecto). Probado sirviendo con `curl --resolve repo.solwed.es:443:127.0.0.1 ...` para forzar SNI/Host correctos sin depender del DNS, que aún no existe.
+
+**Certificado actual: autofirmado por CloudPanel**, no Let's Encrypt — esperado sin DNS real. No compromete la integridad del repo (la garantiza la firma GPG del `Release`, no el TLS). Cuando haya DNS, un solo comando (`clpctl lets-encrypt:install:certificate`) lo resuelve.
+
+**Corregida también la plantilla del cliente** (`apt-repo/solwed.list.template`): tenía un prefijo `/apt` que no existe — `aptly publish snapshot` publica en la raíz del dominio, confirmado con `curl` (404 en `/apt/...`, 200 en la raíz).
+
+Añadido `apt-repo/publish-update.sh`, script de referencia para publicar futuros `.deb` sin downtime (`repo add` + `snapshot create` + `publish switch`).
+
+**Único pendiente real:** DNS de `repo.solwed.es` → `51.89.21.128`, cuando el usuario pueda — y en ese momento, pedir el certificado real.

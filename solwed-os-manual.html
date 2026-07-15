@@ -831,40 +831,41 @@ sources=[('xkb', 'es+winkeys')]</code></pre>
         <p class="level-sub">Esto ya es infraestructura y producto propio, no solo configuración de la ISO — resérvalo para cuando el alpha esté estable.</p>
 
         <article class="card" id="item-repo">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge partial">◐ En progreso — Alpha 4.0</span></div>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge done">✓ Hecho — servidor real desplegado y publicando, 2026-07-15. Solo queda el DNS.</span></div>
           <h3 class="card-title">Repositorio APT propio</h3>
           <p class="card-why">Poder empujar actualizaciones y herramientas de Solwed a los equipos ya instalados, sin reconstruir la ISO cada vez. Herramienta elegida: <strong>aptly</strong> (más simple de operar en solitario que <code>reprepro</code>, buena gestión de snapshots para publicar sin downtime).</p>
           <div class="files">
             <span class="file-chip">apt-repo/solwed.gpg</span>
             <span class="file-chip">apt-repo/solwed-repo-signing-key.asc</span>
             <span class="file-chip">apt-repo/solwed.list.template</span>
+            <span class="file-chip">apt-repo/publish-update.sh</span>
           </div>
           <ol class="steps">
-            <li><p><strong>Clave GPG dedicada generada (hecho).</strong> RSA 4096, caduca a los 2 años (rotación forzada por diseño, no queda como "para siempre y se olvida"). <strong>La privada nunca se ha guardado en este repo ni se imprime en ningún sitio compartido</strong> — solo vive donde Solwed la haya puesto a salvo (gestor de contraseñas/USB cifrado). Aquí solo se versiona la <em>pública</em>, tanto en formato legible (<code>.asc</code>) como en el binario dearmored que espera <code>/etc/apt/trusted.gpg.d/</code> (<code>.gpg</code>).</p></li>
+            <li><p><strong>Clave GPG dedicada generada (hecho).</strong> RSA 4096, caduca a los 2 años (rotación forzada por diseño, no queda como "para siempre y se olvida"). <strong>La privada nunca se ha guardado en este repo ni se imprime en ningún sitio compartido</strong> — solo vive donde Solwed la haya puesto a salvo, y se importó directamente al servidor por SCP desde ahí, sin pasar por el chat en ningún momento. Aquí solo se versiona la <em>pública</em>, tanto en formato legible (<code>.asc</code>) como en el binario dearmored que espera <code>/etc/apt/trusted.gpg.d/</code> (<code>.gpg</code>).</p></li>
             <li><p><strong>Clave pública ya preinstalada en la imagen (hecho)</strong> — segura de dejar activa aunque el repo no exista todavía, una clave de confianza sin ningún <code>sources.list</code> que la use no hace nada:</p>
               <pre><code>cp apt-repo/solwed.gpg /etc/apt/trusted.gpg.d/solwed.gpg</code></pre>
             </li>
-            <li><p><strong>El <code>sources.list</code> NO está activado todavía, a propósito.</strong> A diferencia de la clave, un fichero en <code>/etc/apt/sources.list.d/</code> se consulta activamente en cada <code>apt update</code> — dejarlo apuntando a un dominio que no responde da un error visible cada vez, en cualquier build de prueba. Se queda como plantilla sin activar hasta tener servidor real:</p>
-              <pre><code><span class="cmt"># apt-repo/solwed.list.template — activar solo cuando repo.solwed.es sirva de verdad</span>
-deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg] https://repo.solwed.es/apt resolute main</code></pre>
+            <li><p><strong>Servidor desplegado en real — 2026-07-15, sobre <code>erpsolwed</code> (mismo servidor que RustDesk).</strong> <code>aptly</code> 1.6.3 instalado desde su repo oficial (<code>repo.aptly.info</code>, distribución <code>trixie</code>). Clave GPG importada en el keyring de <code>root</code> (<code>gpg --homedir /root/.gnupg --import</code>) — necesaria ahí porque <code>aptly publish</code> firma con el keyring del usuario que lo ejecuta.</p>
+              <p><strong>Detalle no obvio encontrado durante el despliegue:</strong> el <code>root_dir</code> por defecto de aptly es <code>~/.aptly</code>, que para <code>root</code> cae bajo <code>/root</code> (permisos <code>700</code>) — el usuario que ejecuta nginx en este servidor (<code>clp</code>, vía CloudPanel) nunca podría atravesar ese directorio para servir los ficheros, por muy abiertos que estén los permisos de <code>public/</code> por debajo. Solución: <code>root_dir</code> movido a <code>/srv/solwed-apt</code> (fuera de <code>/home</code> y de <code>/root</code>, permisos <code>755</code> normales) enlazado con un symlink desde <code>/root/.aptly</code> para que los comandos de <code>aptly</code> (que asumen esa ruta) sigan funcionando sin tener que pasar <code>-config</code> cada vez.</p>
+              <pre><code>aptly repo create -distribution=resolute -component=main solwed
+aptly snapshot create solwed-empty from repo solwed
+aptly publish snapshot -architectures=amd64 -gpg-key=1F2DA3270E5FCCF8 solwed-empty</code></pre>
+              <p>Firma verificada con <code>gpg --verify</code> contra el fingerprint real de la clave (<code>9633 6EAB ... 0E5F CCF8</code>) antes de dar el paso por bueno.</p>
             </li>
-            <li><p><strong>Pendiente — montaje del servidor</strong> (no forma parte de este repo de Cubic, es infraestructura aparte):</p>
-              <pre><code>apt-get install aptly gnupg nginx
-gpg --import solwed-repo-signing-key-PRIVATE.asc   <span class="cmt"># solo en el servidor, jamás en la imagen</span>
-
-aptly repo create -distribution=resolute -component=main solwed
-aptly repo add solwed paquete.deb
-aptly snapshot create solwed-$(date +%Y%m%d) from repo solwed
-aptly publish snapshot -gpg-key=repo@solwed.es solwed-$(date +%Y%m%d)
-<span class="cmt"># sirve ~/.aptly/public/ en https://repo.solwed.es/apt vía nginx</span>
-
-<span class="cmt"># para publicar una actualización más adelante, sin downtime:</span>
-aptly repo add solwed nuevo-paquete.deb
-aptly snapshot create solwed-$(date +%Y%m%d)-2 from repo solwed
-aptly publish switch resolute solwed-$(date +%Y%m%d)-2</code></pre>
+            <li><p><strong>Sitio publicado vía CloudPanel — <code>repo.solwed.es</code>, sirviendo desde la raíz del dominio (sin prefijo <code>/apt/</code>).</strong> Creado con <code>clpctl site:add:static</code> y luego repuntado el <code>root</code> del vhost de nginx directamente a <code>/srv/solwed-apt/public</code> (con <code>autoindex on</code>), en vez de copiar/sincronizar ficheros al <code>htdocs</code> por defecto del sitio — así cada <code>aptly publish</code>/<code>switch</code> futuro se sirve automáticamente sin ningún paso extra.</p>
+              <p><strong>Aviso real para quien retome este punto:</strong> este servidor corre <em>dos</em> instancias de nginx en paralelo — la de CloudPanel (<code>/home/clp/services/nginx/nginx.conf</code>) y la del sistema (<code>/etc/nginx/nginx.conf</code>, la que en realidad tiene los certificados y vhosts de todos los sitios, incluido este). El vhost que gestiona <code>clpctl</code> vive en <code>/etc/nginx/sites-enabled/</code>; recargar la instancia de CloudPanel con <code>nginx -s reload -c .../clp/.../nginx.conf</code> no aplica cambios ahí — hace falta <code>sudo nginx -s reload</code> (sin <code>-c</code>, la instancia por defecto). Confirmado sirviendo con <code>curl --resolve repo.solwed.es:443:127.0.0.1 ...</code> (necesario porque el DNS aún no apunta, para forzar el SNI/Host correctos sin depender de él).</p>
+              <p><strong>Certificado actual: autofirmado por CloudPanel</strong>, no Let's Encrypt — normal y esperado sin DNS real todavía. No es un problema de seguridad para el propio repo: la integridad de los paquetes la garantiza la firma GPG del <code>Release</code>, no el TLS del transporte. Cuando el DNS de <code>repo.solwed.es</code> apunte a <code>51.89.21.128</code>, pedir el certificado real es un solo comando: <code>clpctl lets-encrypt:install:certificate --domainName=repo.solwed.es</code>.</p>
+            </li>
+            <li><p><strong>Publicar una actualización futura</strong> — script de referencia en <code>apt-repo/publish-update.sh</code> (copiar al servidor y ejecutar con <code>sudo ./publish-update.sh /ruta/paquete.deb</code>), automatiza el patrón sin downtime:</p>
+              <pre><code>aptly repo add solwed nuevo-paquete.deb
+aptly snapshot create solwed-$(date +%Y%m%d-%H%M%S) from repo solwed
+aptly publish switch -gpg-key=1F2DA3270E5FCCF8 resolute solwed-$(date +%Y%m%d-%H%M%S)</code></pre>
+            </li>
+            <li><p><strong>Único pendiente real:</strong> DNS de <code>repo.solwed.es</code> → <code>51.89.21.128</code> (cuando el usuario pueda) y, en ese momento, pedir el certificado Let's Encrypt real. La plantilla del cliente (<code>apt-repo/solwed.list.template</code>) ya está corregida y lista para activarse ese día:</p>
+              <pre><code>deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg] https://repo.solwed.es resolute main</code></pre>
             </li>
           </ol>
-          <div class="aviso"><strong>Lección ya aplicada de la clave privada:</strong> se generó y por accidente se imprimió una vez en un canal compartido antes de guardarla — como aún no había firmado nada real, se revocó por decisión y se regeneró desde cero en vez de arriesgarse a seguir usando una clave que pudiera estar expuesta. Norma para el futuro: cualquier secreto de este tipo se entrega como ruta de archivo en la propia máquina del usuario, nunca pegado en el chat.</div>
+          <div class="aviso"><strong>Lección ya aplicada de la clave privada:</strong> se generó y por accidente se imprimió una vez en un canal compartido antes de guardarla — como aún no había firmado nada real, se revocó por decisión y se regeneró desde cero en vez de arriesgarse a seguir usando una clave que pudiera estar expuesta. Norma para el futuro, aplicada también en este despliegue: cualquier secreto de este tipo se entrega/transfiere como ruta de archivo en la propia máquina del usuario, nunca pegado en el chat — la clave privada de este punto se copió del escritorio de Windows del usuario directamente al servidor por SCP, sin leer su contenido en ningún momento.</div>
         </article>
 
         <article class="card" id="item-wizard">

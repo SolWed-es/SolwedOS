@@ -1,5 +1,9 @@
-# Plantilla — NO activar hasta desplegar el repo real en repo.solwed.es
-# Copiar a /etc/apt/sources.list.d/solwed.list (sin el .template) solo
-# cuando el servidor aptly esté publicando de verdad, o "apt update"
+# Plantilla — activar solo cuando repo.solwed.es tenga DNS real apuntando
+# al servidor (51.89.21.128 / erpsolwed), copiando a
+# /etc/apt/sources.list.d/solwed.list (sin el .template), o "apt update"
 # fallará en cada equipo que ya tenga esto habilitado.
-deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg] https://repo.solwed.es/apt resolute main
+#
+# El servidor ya está publicando en producción (aptly, sobre erpsolwed,
+# vía CloudPanel) — repo.solwed.es sirve desde la raíz del dominio, sin
+# prefijo /apt/ (aptly publica ahí "publish snapshot" sin ruta extra).
+deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg] https://repo.solwed.es resolute main
