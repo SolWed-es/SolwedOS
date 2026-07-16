@@ -454,3 +454,39 @@ sudo systemctl enable --now rustdesk
 Autologin (`/etc/gdm3/custom.conf`) queda como mejora aparte, solo para el caso de que el equipo se reinicie solo (corte de luz, actualización) — no relacionado con el bug de bloqueo.
 
 Manual (`#item-support`) actualizado con todo el hallazgo, sin tocar el resto de la card ya cerrada.
+
+## DNS real + certificado Let's Encrypt: repo APT y RustDesk migrados a erpsolwed.es (2026-07-16)
+
+Los dos pendientes de DNS que quedaban abiertos (`repo.solwed.es`, `remoto.solwed.es`) llevaban bloqueados desde el 2026-07-15 esperando respuesta del jefe del usuario para tocar la zona `solwed.es` — en concreto, `rustdesk.solwed.es` ya existía apuntando a otra IP (`54.37.230.9`) sin saber si era una reserva libre o un servicio activo de otra cosa.
+
+**Resuelto con un cambio de dominio, sin esperar respuesta**: en vez de pedir los registros bajo `solwed.es`, se crearon como subdominios nuevos de **`erpsolwed.es`** (zona sin ese conflicto): `repo.erpsolwed.es` → `51.89.21.128` y `remoto.erpsolwed.es` → `51.89.21.128`. Confirmado por resolución DNS real (no vía panel), ambos resuelven correctamente.
+
+**Certificado Let's Encrypt real para el repo APT** — el sitio de CloudPanel en `erpsolwed` seguía registrado como `repo.solwed.es` (el dominio abandonado, sin DNS — NXDOMAIN confirmado), lo que bloqueaba `clpctl lets-encrypt:install:certificate` para siempre, incluso pasando `repo.erpsolwed.es` como `--subjectAlternativeName`, porque ese comando siempre valida también el dominio "propietario" del sitio. Solución: creado un **sitio nuevo** en CloudPanel (`site:add:static --domainName=repo.erpsolwed.es`, usuario `repoerp`), pedido el certificado ahí (dominio único, sin SAN), y solo después repuntada su raíz nginx a `/srv/solwed-apt/public` — repuntar el root antes del certificado rompe la validación ACME porque el challenge se escribe en el docroot por defecto de CloudPanel, no en la ruta real del repo. El sitio obsoleto `repo.solwed.es` (sin DNS, solo el `index.html` por defecto, nada del repo real) se eliminó de CloudPanel tras confirmar que no había nada de valor. Verificado extremo a extremo: `curl -v https://repo.erpsolwed.es/` sirve HTTP/2 200, certificado `issuer: Let's Encrypt`, listado real (`dists/`, `pool/`) intacto.
+
+**Plantillas del repo actualizadas** a los dominios reales: `rustdesk-installer/RustDesk2.toml` + `rustdesk-installer/skel-config/rustdesk/RustDesk2.toml` (antes IP cruda `51.89.21.128` → ahora `remoto.erpsolwed.es`) y `apt-repo/solwed.list.template` (→ `repo.erpsolwed.es`, activado de verdad quitando el `.template`). De paso, restringida la línea `deb` a `arch=amd64` — el repo aptly solo publica `amd64`, y sin esto `apt update` avisaba (sin fallar) de que no podía cubrir `i386` en cualquier equipo con esa arquitectura habilitada (p.ej. tras instalar Steam/Wine).
+
+**Lección para este servidor:** `lets-encrypt:install:certificate --domainName=X` en CloudPanel SIEMPRE valida el dominio `X` en sí, nunca solo los SAN — si el sitio quedó registrado bajo un dominio sin DNS real, no hay forma de pedirle un certificado por SAN; hay que crear un sitio nuevo bajo el dominio correcto, pidiendo el cert con el docroot todavía por defecto, y repuntar el `root` del vhost después.
+
+## Alpha 4.4.0 — autologin en modo live roto al añadir la cuenta de soporte (2026-07-15/16)
+
+Al añadir el usuario de rescate `soporte-solwed` (Nivel 4, cuenta para clientes que olvidan su contraseña) y regenerar la ISO, el arranque en modo live dejó de entrar solo con el usuario `solwed` — pedía usuario y contraseña en GDM, cuando antes entraba directo. Primeras hipótesis (choque de UID exacto 1000, initramfs desactualizado) descartadas con evidencia real, sin encontrar la causa — sesión bloqueada esperando un log de arranque real.
+
+**Causa raíz real, encontrada 2026-07-16 con el primer log de arranque conseguido:** en `/usr/lib/user-setup/functions.sh`, la función `is_system_user()` comprueba si `/etc/passwd` ya tiene **cualquier** UID entre 1000 y 59999 (no un UID exacto) y, si lo encuentra, asume "ya existe una cuenta de usuario, no crear una automática". `user-setup-apply` (invocado desde `casper-bottom/25adduser`) solo crea el usuario live si `! is_system_user`. Al estar `soporte-solwed` en UID 1001 (dentro de ese rango), la comprobación empezó a devolver verdadero y **toda la creación del usuario `solwed` se saltaba silenciosamente** — incluida la configuración de autologin de GDM, que vive dentro del mismo bloque `if`. El fix previo de UID 1000→1001 no sirvió de nada porque la comprobación nunca fue por un número exacto.
+
+**Fix:** añadida `export OVERRIDE_SYSTEM_USER=1` en `custom-root/usr/share/initramfs-tools/scripts/casper-bottom/25adduser`, justo antes de la llamada a `user-setup-apply` — variable de escape ya soportada oficialmente por `is_system_user()`. Verificado con evidencia dura (extracción y grep del initrd real, no solo mtime).
+
+**Cerrado y confirmado en Alpha 4.5.0:** arranque live directo como `solwed`, sin pedir usuario/contraseña.
+
+## Alpha 4.5.1 — el mismo bug también rompía la instalación real (2026-07-16)
+
+Tras confirmar Alpha 4.5.0 en live, apareció el mismo síntoma en una **instalación real**: el usuario elegido durante el asistente de Ubiquity no llegaba a crearse, solo se podía entrar como `soporte-solwed`.
+
+**Causa: Ubiquity tiene su propia copia duplicada de `user-setup-apply`/`functions.sh`**, con el mismo `is_system_user()`, que nadie había parcheado. En `custom-root/usr/lib/ubiquity/plugins/ubi-usersetup.py`, clase `Install.prepare()`, el modo OEM ya pasaba `OVERRIDE_SYSTEM_USER: '1'`, pero el modo de instalación normal (el que usa cualquier cliente real) pasaba `environ = {}` vacío.
+
+**Fix:** mismo patrón, `environ = {'OVERRIDE_SYSTEM_USER': '1'}` en el modo normal.
+
+**Cerrado y confirmado en Alpha 4.5.1:** instalación real completa, el usuario elegido durante el setup se crea correctamente.
+
+**Lección general:** cualquier fix de `user-setup`/`is_system_user` debe aplicarse en las dos copias que vive en la imagen (`/usr/lib/user-setup/`, usada por casper en live, y `/usr/lib/ubiquity/user-setup/` + `ubi-usersetup.py`, usada por el instalador real) — son ficheros duplicados, no compartidos.
+
+**Bug menor encontrado en el mismo boot-test, también arreglado:** RustDesk de `soporte-solwed` seguía mostrando la IP cruda en vez del dominio — su carpeta de usuario se creó (horneada en la imagen) antes de que se actualizara `/etc/skel` al dominio nuevo, y `/etc/skel` no se copia retroactivamente a cuentas ya existentes. Refrescado a mano su `RustDesk2.toml`. Cualquier cuenta pre-horneada necesitará este refresco manual cada vez que cambie una plantilla de skel, hasta que exista un mecanismo automático (mismo patrón que `alternatives-guard`/`branding-guard`).
