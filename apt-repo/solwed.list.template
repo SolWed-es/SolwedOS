@@ -1,9 +1,12 @@
-# Plantilla — activar solo cuando repo.solwed.es tenga DNS real apuntando
-# al servidor (51.89.21.128 / erpsolwed), copiando a
-# /etc/apt/sources.list.d/solwed.list (sin el .template), o "apt update"
-# fallará en cada equipo que ya tenga esto habilitado.
+# Plantilla — copiar a /etc/apt/sources.list.d/solwed.list (sin el
+# .template) para activarla. DNS + certificado Let's Encrypt real ya
+# funcionando (confirmado 2026-07-16).
 #
 # El servidor ya está publicando en producción (aptly, sobre erpsolwed,
-# vía CloudPanel) — repo.solwed.es sirve desde la raíz del dominio, sin
+# vía CloudPanel) — repo.erpsolwed.es sirve desde la raíz del dominio, sin
 # prefijo /apt/ (aptly publica ahí "publish snapshot" sin ruta extra).
-deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg] https://repo.solwed.es resolute main
+#
+# arch=amd64: el repo solo publica paquetes amd64 — sin esto, en
+# cualquier equipo con i386 habilitado (p.ej. tras instalar Steam/Wine)
+# "apt update" avisa (no falla) de que no puede cubrir i386 aquí.
+deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg arch=amd64] https://repo.erpsolwed.es resolute main

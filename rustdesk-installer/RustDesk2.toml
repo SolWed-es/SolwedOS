@@ -1,6 +1,6 @@
 rendezvous_server = ''
 
 [options]
-custom-rendezvous-server = '51.89.21.128'
-relay-server = '51.89.21.128'
+custom-rendezvous-server = 'remoto.erpsolwed.es'
+relay-server = 'remoto.erpsolwed.es'
 key = 'jPMyhXCl14aI1wJBW8fIlADfcv3H1vWgs2NoZXxJAu0='
