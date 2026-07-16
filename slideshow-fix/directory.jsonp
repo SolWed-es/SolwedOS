@@ -1,0 +1,328 @@
+ubiquitySlideshowDirectoryCb(
+{
+    "ar": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "da": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "de": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "el": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "en_GB": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "es": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "fi": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "fr": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "hi": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "id": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "it": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "ja": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "ko": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "nl": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "pl": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "pt": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "pt_BR": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "ro": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "ru": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "sv": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "th": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "tr": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "uk": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "vi": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "zh_CN": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "zh_HK": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    },
+    "zh_TW": {
+        "slides": [
+            "updates.html",
+            "support-remote.html",
+            "catalog.html",
+            "privacy.html",
+            "root.html",
+            "support.html",
+            "welcome.html"
+        ],
+        "media": []
+    }
+}
+);

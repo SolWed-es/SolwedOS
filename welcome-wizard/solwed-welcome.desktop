@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Solwed OS Welcome
+Exec=/usr/lib/solwed/solwed-welcome.sh
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

@@ -490,3 +490,42 @@ Tras confirmar Alpha 4.5.0 en live, apareció el mismo síntoma en una **instala
 **Lección general:** cualquier fix de `user-setup`/`is_system_user` debe aplicarse en las dos copias que vive en la imagen (`/usr/lib/user-setup/`, usada por casper en live, y `/usr/lib/ubiquity/user-setup/` + `ubi-usersetup.py`, usada por el instalador real) — son ficheros duplicados, no compartidos.
 
 **Bug menor encontrado en el mismo boot-test, también arreglado:** RustDesk de `soporte-solwed` seguía mostrando la IP cruda en vez del dominio — su carpeta de usuario se creó (horneada en la imagen) antes de que se actualizara `/etc/skel` al dominio nuevo, y `/etc/skel` no se copia retroactivamente a cuentas ya existentes. Refrescado a mano su `RustDesk2.toml`. Cualquier cuenta pre-horneada necesitará este refresco manual cada vez que cambie una plantilla de skel, hasta que exista un mecanismo automático (mismo patrón que `alternatives-guard`/`branding-guard`).
+
+## Icono de Software/FacturaScripts — azul→naranja (2026-07-16)
+
+El asa y el brillo del icono de la bolsa (amarilla desde el recoloreo del Nivel 3) seguían en azul. Un solo fichero real (`gnome-software.svg`) resuelve los dos iconos a la vez — `org.gnome.Software.svg` y `system-software-install.svg` son symlinks a él, no copias separadas. Mismo método de rotación de matiz (preserva saturación/valor) que los recoloreos anteriores del proyecto: `#6694ff→#ffad66`, `#1754d3→#d36f17`, `#5284ff→#ffa352`.
+
+## Asistente de bienvenida — Nivel 4 cerrado, Alpha 4.6.0 (2026-07-16)
+
+Último punto pendiente de los 4 Niveles del manual original. Deliberadamente **no** se construyó un reemplazo de `gnome-initial-setup` (mucho desarrollo real para lo que aporta) — un diálogo `zenity --info` de una sola vez, con la lista de apps preinstaladas y un puntero a soporte (RustDesk/solwed.es), reutilizando el patrón idempotente ya usado en el proyecto (script en `/usr/lib/solwed/`, autostart en `/etc/xdg/autostart/`, marcador en `~/.config/`). Fuente en `welcome-wizard/`.
+
+**Bug real encontrado antes de aplicar, no después:** la primera versión se habría disparado en todos los arranques live, no solo una vez — casper regenera el usuario `solwed` desde cero en cada arranque, así que el marcador de "ya mostrado" nunca sobreviviría de un boot al siguiente. Fix: `grep -q boot=casper /proc/cmdline && exit 0` al principio del script. Lección para cualquier futura función de "primer login": comprobar siempre `boot=casper` antes de asumir que la lógica de "solo una vez" se comporta igual en live.
+
+Contenido actualizado el mismo día para mencionar Timeshift, a petición del usuario, coherente con la nueva diapositiva del catálogo del slideshow (ver más abajo).
+
+## Slideshow del instalador reescrito de contenido y capturas — Alpha 4.7.0 (2026-07-16)
+
+Tres diapositivas seguían siendo la plantilla genérica de Ubuntu/AnduinOS (juegos, Docker, Flatpak/Snap) — irrelevante para el cliente real de Solwed (pyme española con FacturaScripts/Autofirma, no desarrolladores ni gamers). Reescritas y renombradas para que el nombre de archivo coincida con el contenido:
+
+- `gaming.html` → **`catalog.html`** — catálogo de apps preinstaladas + Timeshift.
+- `build.html` → **`support-remote.html`** — RustDesk, soporte a un clic.
+- `apps.html` → **`updates.html`** — actualizaciones automáticas vía repo propio + Tienda de software.
+- `privacy.html` suavizada: "nunca recopilamos tus datos" → "sin telemetría ni recopilación de datos por defecto" (decisión de negocio explícita, no un cambio técnico).
+
+Traducido a los 27 idiomas vía 6 agentes en paralelo (mismo patrón que la reescritura original de 2026-07-09), verificado sin restos de contenido viejo (Steam/Docker/Flatpak) en ningún idioma tras dos rondas (la primera pasada de borrado usó `find -maxdepth 2`, que no llegaba a `slides/l10n/<idioma>/*.html` a 3 niveles de profundidad — quedaron 81 ficheros huérfanos hasta la segunda pasada sin límite de profundidad).
+
+**Los dos manifests que referencian los nombres de archivo** (`index.html`, `directory.jsonp` — antes sin trackear en el repo) actualizados para los 3 renombres; confirmado que son las únicas dos referencias a esos nombres en todo el paquete `ubiquity-slideshow`.
+
+**Las 5 capturas con marca de AnduinOS — cerradas del todo, ya no es un punto pendiente.** `welcome.png` (fondo compartido de `welcome`/`support`/`privacy`) sustituida por el wallpaper real de Solwed OS con el logo "W."/wordmark **quitado mediante inpainting** (OpenCV `cv2.inpaint`, detección del bounding box por contraste de brillo + relleno `INPAINT_TELEA`, limpio y sin artefactos en las dos variantes clara/oscura). Las otras 4 (`catalog`, `support-remote`, `updates`, y `sc.png` de `root.html`) sustituidas por **capturas reales del sistema instalado** aportadas por el usuario (menú ArcMenu, ventana de RustDesk, panel de actualizaciones, terminal), recortadas a la ventana relevante — las 4 diapositivas que las usan volvieron del layout "wide" (fondo genérico, parche temporal) al layout original con captura lateral, transformación scriptada sobre 84 ficheros (3 diapositivas × 28 copias). Cero menciones de "anduin" en todo el árbol `ubiquity-slideshow` tras esto.
+
+## Repo de AnduinOS — decisión de mantenerlo activo (2026-07-16)
+
+Se planteó desactivar `packages.anduinos.com` (`Enabled: no` en el `.sources`) para cerrar de raíz el vector que causó el regreso de branding tras la actualización del 14 de julio. El usuario decidió confiar en que los guardianes (`alternatives-guard`/`branding-guard`) ya cubren ese escenario — razonamiento correcto en principio, pero esos guardianes siguen sin haberse visto disparar ante una actualización real. Revisar de nuevo si ese supuesto falla algún día.
+
+## RDP multiusuario simultáneo — investigado, aparcado pendiente de decisión de negocio (2026-07-16)
+
+El usuario preguntó si se puede sustituir la cuenta compartida `soporte-solwed` (riesgo real: contraseña única para toda la flota, con sudo, sin rotación posible sin visitar cada máquina) y si es posible un RDP tipo Windows con varios técnicos conectados a la vez al mismo equipo — la opción "Escritorio remoto" de Configuración solo espeja la sesión física, un usuario a la vez.
+
+**Hallazgo clave:** `gnome-remote-desktop` (versión 50.0, ya instalado de fábrica) soporta un modo headless multiusuario real desde GNOME 46 (`grdctl --system rdp set-tls-key/set-tls-cert/set-credentials/enable`) — crea sesiones nuevas independientes vía GDM `RemoteDisplayFactory`, sin tocar la sesión local del cliente. Pero **la misma cuenta no puede tener dos sesiones headless simultáneas** (la segunda expulsa o hereda la primera según versión) — hace falta una cuenta por técnico, no una compartida, para acceso simultáneo real. Esto conecta ambas preguntas: cuentas individuales (`soporte-alex`, `soporte-ivan`, de momento son 2) resuelven a la vez el problema de la contraseña compartida y habilitan el RDP multiusuario.
+
+**Decidido:** sí, sustituir `soporte-solwed` por las 2 cuentas individuales. **Pendiente de decidir con el jefe:** cómo restringir el puerto RDP (3389) sin VPN/Tailscale a la red del cliente — con IP de oficina dinámica, una lista blanca fija de firewall no es fiable; se propuso (sin decidir) un modelo de "puerto cerrado por defecto, abrir solo durante la sesión de soporte". **Nada de esto aplicado todavía** — ni cuentas, ni `grdctl`, ni firewall.

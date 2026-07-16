@@ -427,8 +427,8 @@
       <div class="meta-row">
         <span class="meta-chip">Herramienta: Cubic</span>
         <span class="meta-chip">Base: AnduinOS 2.0.0 (Ubuntu 26.04 "resolute")</span>
-        <span class="meta-chip">Fase: alpha — baseline Alpha 4.2.0, confirmada en real</span>
-        <span class="meta-chip">4 niveles · Nivel 1-3 cerrados · Nivel 4 en progreso (soporte remoto + repo APT, servidor pendiente)</span>
+        <span class="meta-chip">Fase: alpha — baseline Alpha 4.7.0, confirmada en real</span>
+        <span class="meta-chip">4 niveles · Nivel 1-4 cerrados a alcance completo — resto es pulido/investigación aparcada</span>
       </div>
     </div>
   </header>
@@ -831,7 +831,7 @@ sources=[('xkb', 'es+winkeys')]</code></pre>
         <p class="level-sub">Esto ya es infraestructura y producto propio, no solo configuración de la ISO — resérvalo para cuando el alpha esté estable.</p>
 
         <article class="card" id="item-repo">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge done">✓ Hecho — servidor real desplegado y publicando, 2026-07-15. Solo queda el DNS.</span></div>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge done">✓ Hecho del todo — DNS real + certificado Let's Encrypt, 2026-07-16</span></div>
           <h3 class="card-title">Repositorio APT propio</h3>
           <p class="card-why">Poder empujar actualizaciones y herramientas de Solwed a los equipos ya instalados, sin reconstruir la ISO cada vez. Herramienta elegida: <strong>aptly</strong> (más simple de operar en solitario que <code>reprepro</code>, buena gestión de snapshots para publicar sin downtime).</p>
           <div class="files">
@@ -861,22 +861,29 @@ aptly publish snapshot -architectures=amd64 -gpg-key=1F2DA3270E5FCCF8 solwed-emp
 aptly snapshot create solwed-$(date +%Y%m%d-%H%M%S) from repo solwed
 aptly publish switch -gpg-key=1F2DA3270E5FCCF8 resolute solwed-$(date +%Y%m%d-%H%M%S)</code></pre>
             </li>
-            <li><p><strong>Único pendiente real:</strong> DNS de <code>repo.solwed.es</code> → <code>51.89.21.128</code> (cuando el usuario pueda) y, en ese momento, pedir el certificado Let's Encrypt real. La plantilla del cliente (<code>apt-repo/solwed.list.template</code>) ya está corregida y lista para activarse ese día:</p>
-              <pre><code>deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg] https://repo.solwed.es resolute main</code></pre>
+            <li><p><strong>Cerrado del todo — 2026-07-16.</strong> El dominio original (<code>repo.solwed.es</code>) se abandonó sin usar DNS real — bloqueado esperando aprobación ajena a este proyecto. Se resolvió apuntando en su lugar a un subdominio de <code>erpsolwed.es</code> (zona sin ese bloqueo): <code>repo.erpsolwed.es</code> → <code>51.89.21.128</code>. Certificado Let's Encrypt real emitido (no el autofirmado de CloudPanel) — requirió crear un <strong>sitio nuevo</strong> en CloudPanel bajo ese dominio, ya que el sitio original seguía registrado bajo el dominio sin DNS y <code>lets-encrypt:install:certificate</code> valida siempre el dominio "propietario" del sitio, no solo los SAN. Plantilla del cliente activada y en producción:</p>
+              <pre><code>deb [signed-by=/etc/apt/trusted.gpg.d/solwed.gpg arch=amd64] https://repo.erpsolwed.es resolute main</code></pre>
             </li>
           </ol>
           <div class="aviso"><strong>Lección ya aplicada de la clave privada:</strong> se generó y por accidente se imprimió una vez en un canal compartido antes de guardarla — como aún no había firmado nada real, se revocó por decisión y se regeneró desde cero en vez de arriesgarse a seguir usando una clave que pudiera estar expuesta. Norma para el futuro, aplicada también en este despliegue: cualquier secreto de este tipo se entrega/transfiere como ruta de archivo en la propia máquina del usuario, nunca pegado en el chat — la clave privada de este punto se copió del escritorio de Windows del usuario directamente al servidor por SCP, sin leer su contenido en ningún momento.</div>
         </article>
 
         <article class="card" id="item-wizard">
-          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge todo">○ Pendiente</span></div>
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Riesgo alto</span> <span class="badge done">✓ Hecho — confirmado en Alpha 4.6.0, 2026-07-16. Cierra el alcance completo de los 4 Niveles.</span></div>
           <h3 class="card-title">Asistente de bienvenida (primer arranque)</h3>
-          <p class="card-why">Una pantalla propia de Solwed que reciba al cliente la primera vez que entra, en vez del asistente genérico de GNOME.</p>
+          <p class="card-why">Una pantalla propia de Solwed que reciba al cliente la primera vez que entra. Deliberadamente <strong>no</strong> se construyó un reemplazo a medida de <code>gnome-initial-setup</code> (mucho desarrollo real para lo que aporta) — un diálogo simple de una sola vez cubre el objetivo con una fracción del riesgo.</p>
+          <div class="files">
+            <span class="file-chip">welcome-wizard/solwed-welcome.sh</span>
+            <span class="file-chip">welcome-wizard/solwed-welcome.desktop</span>
+            <span class="file-chip">welcome-wizard/solwed-welcome-logo.png</span>
+          </div>
           <ol class="steps">
-            <li><p>Opción rápida: parchear textos e imágenes de <code>gnome-initial-setup</code> con vuestro branding.</p></li>
-            <li><p>Opción a medida: app propia lanzada una sola vez vía <code>~/.config/autostart/solwed-welcome.desktop</code>, controlando el "ya visto" con un fichero marcador, por ejemplo <code>~/.config/solwed/.welcomed</code>.</p></li>
+            <li><p><strong>Diálogo <code>zenity --info</code> de una sola vez</strong>, con bienvenida + lista de apps preinstaladas (LibreOffice, Thunderbird+WhatsApp, FacturaScripts, Autofirma+Okular, Timeshift) + cómo pedir ayuda (RustDesk / solwed.es/contacto). Mismo patrón idempotente ya usado en el proyecto para la confianza de Autofirma y los accesos directos: script en <code>/usr/lib/solwed/</code>, disparado por un <code>.desktop</code> en <code>/etc/xdg/autostart/</code>, controlado por un fichero marcador en <code>~/.config/</code>.</p></li>
+            <li><p><strong>Bug real encontrado antes de aplicar, no después:</strong> la primera versión se habría disparado en <em>todos</em> los arranques live, no solo una vez — casper regenera el usuario <code>solwed</code> desde cero en cada arranque, así que el fichero marcador nunca sobreviviría de un arranque al siguiente. Arreglado comprobando el modo de arranque al principio del script:</p>
+              <pre><code>grep -q boot=casper /proc/cmdline && exit 0</code></pre>
+              <p><strong>Lección para cualquier futura función de "primer login" en este proyecto:</strong> siempre comprobar <code>boot=casper</code> antes de asumir que una lógica de "solo una vez" funcionará igual en modo live.</p>
+            </li>
           </ol>
-          <p class="card-why">Esta es la tarea con más desarrollo real detrás (ya no es solo configuración) — déjala para cuando el resto esté asentado.</p>
         </article>
 
         <article class="card" id="item-support">
@@ -893,14 +900,14 @@ aptly publish switch -gpg-key=1F2DA3270E5FCCF8 resolute solwed-$(date +%Y%m%d-%H
               <pre><code>rendezvous_server = ''
 
 [options]
-custom-rendezvous-server = '51.89.21.128'
-relay-server = '51.89.21.128'
+custom-rendezvous-server = 'remoto.erpsolwed.es'
+relay-server = 'remoto.erpsolwed.es'
 key = 'jPMyhXCl14aI1wJBW8fIlADfcv3H1vWgs2NoZXxJAu0='</code></pre>
               <p>Quitado <code>api-server</code> de la plantilla — apunta al servidor web de la versión Pro (puerto 21114), que no hemos desplegado; dejarlo con una URL que no responde solo añade una llamada fallida más al arrancar el cliente, sin aportar nada en la versión OSS.</p>
             </li>
             <li><p><strong>Bug del propio paquete, ya neutralizado:</strong> el <code>postinst</code> de RustDesk hace <code>systemctl enable rustdesk; systemctl start rustdesk</code> incondicionalmente al instalar — es el servicio <code>rustdesk --service</code> (acceso <em>desatendido</em>, sin presencia del usuario, con contraseña permanente, corriendo como root), exactamente lo que este punto del manual pide no activar por defecto. En este chroot ese bloque no llegó a ejecutarse (confirmado: no existe <code>rustdesk.service</code> en ningún <code>systemd/</code> del árbol salvo la plantilla original del paquete), así que el estado actual ya cumple el requisito — pero <strong>verifica siempre con <code>systemctl status rustdesk</code> tras arrancar la ISO real</strong> antes de confiar en que se mantiene así; este proyecto ya ha visto más de un caso de "en el chroot parece una cosa, en el sistema arrancado de verdad es otra" (ver <a href="#bugs-conocidos">Bugs conocidos</a>).</p></li>
             <li><p><strong>Servidor desplegado — 2026-07-14, reutilizando el servidor de producción existente</strong> (<code>erpsolwed</code>, Debian 13, ya gestionado con CloudPanel — sin dedicar máquina nueva, según lo ya valorado). <code>hbbs</code>/<code>hbbr</code> vía Docker Compose oficial (<code>network_mode: host</code>, puertos verificados contra la documentación real de RustDesk, no adivinados: <code>21115/tcp</code> test de NAT, <code>21116/tcp+udp</code> registro/latido, <code>21117/tcp</code> relay, <code>21118</code>/<code>21119</code> tcp opcionales para cliente web). Puertos abiertos en <code>ufw</code>, confirmados escuchando con <code>ss -tulpn</code>. Clave pública generada por <code>hbbs</code> en el primer arranque y ya volcada en la plantilla de arriba.</p>
-              <p><strong>De momento con la IP pública directa, no un dominio</strong> — <code>remoto.solwed.es</code> aún no tiene DNS configurado (fuera del alcance inmediato del usuario en este momento). Un reverse proxy de CloudPanel no serviría para esto de todas formas: <code>hbbs</code>/<code>hbbr</code> hablan TCP/UDP crudo en sus puertos principales, no HTTP, así que el módulo <code>http</code> de nginx que expone la UI de CloudPanel no puede hacerles de proxy — haría falta el módulo <code>stream</code> configurado a mano, y ni siquiera sería necesario: el cliente se conecta directo a los puertos de RustDesk, sin pasar por nginx. Cuando haya DNS, es solo cambiar el valor en la plantilla, sin tocar el servidor.</p>
+              <p><strong>DNS real cerrado — 2026-07-16.</strong> El dominio previsto (<code>remoto.solwed.es</code>) se abandonó por el mismo bloqueo que el del repo APT (ver <a href="#item-repo">arriba</a>); se resolvió con <code>remoto.erpsolwed.es</code> → <code>51.89.21.128</code>, en la zona de <code>erpsolwed.es</code>. Un reverse proxy de CloudPanel no serviría para esto de todas formas: <code>hbbs</code>/<code>hbbr</code> hablan TCP/UDP crudo en sus puertos principales, no HTTP — el cliente se conecta directo a los puertos de RustDesk, sin pasar por nginx.</p>
             </li>
             <li><p><strong>Conexión real confirmada — 2026-07-14, contra el servidor propio (no el público de RustDesk).</strong> Verificado con evidencia de servidor, no solo "parece que funciona": registro de ambos equipos visible en el log de <code>hbbs</code> (<code>update_pk &lt;id&gt; &lt;ip&gt; ...</code>, formato confirmado leyendo <code>peer.rs</code> del propio código fuente de <code>rustdesk-server</code>) y consulta directa a <code>db_v2.sqlite3</code> (<code>SELECT id FROM peer;</code>) mostrando los IDs registrados. Conexión establecida y funcional entre el Solwed OS instalado y un cliente Windows externo.</p></li>
             <li><p><strong>Bug real encontrado y cerrado 2026-07-15 — causa raíz: mayúsculas/minúsculas del directorio de config, no un problema de red ni de timing.</strong> La preconfiguración de fábrica se sembraba en <code>/etc/skel/.config/RustDesk/RustDesk2.toml</code> (con mayúsculas, calcado del nombre de la app) pero el binario en Linux nunca lee esa ruta. Confirmado leyendo el código fuente exacto de la librería que usa <code>hbb_common</code> (<code>directories_next::ProjectDirs::from</code>, crate <code>directories-next</code>/<code>xdg-rs/dirs</code>, función <code>project_dirs_from</code> en <code>src/lin.rs</code>): en Linux, y solo en Linux (macOS/Windows sí respetan el casing original), el nombre de la app se pasa por <code>trim_and_lowercase_then_replace_spaces()</code> antes de formar la ruta — <code>"RustDesk"</code> se convierte en <code>"rustdesk"</code>, así que la ruta real que lee la app es <code>~/.config/rustdesk/RustDesk2.toml</code> (el directorio en minúsculas, el nombre del fichero sí conserva mayúsculas). El fichero sembrado en la ruta con mayúsculas simplemente nunca era leído; la app arrancaba con config vacía y se conectaba de fábrica al servidor público (<code>rs-ny.rustdesk.com</code>), confirmado en los logs (<code>~/.local/share/logs/RustDesk/*.log</code>) de una instalación nueva sin tocar nada. El paso manual que "arreglaba" cada instalación no reescribía nada distinto de nuestra plantilla: simplemente la GUI escribe en la ruta correcta (minúsculas), la única que el binario realmente usa.</p>
@@ -911,7 +918,7 @@ key = 'jPMyhXCl14aI1wJBW8fIlADfcv3H1vWgs2NoZXxJAu0='</code></pre>
               <p><strong>Confirmado además que la sesión de control (no solo el registro/heartbeat) pasa por el servidor propio</strong>, subiendo <code>hbbs</code> a <code>RUST_LOG=debug</code> temporalmente en <code>docker-compose.yml</code> y repitiendo una conexión real: el log mostró <code>Fetch local addr "437737703" ... request from ...</code> (función <code>handle_punch_hole_request</code> de <code>rendezvous_server.rs</code>, la petición de conexión real, no el heartbeat de registro) para el ID exacto del equipo instalado, seguido de la respuesta correspondiente. Con el nivel de log por defecto (<code>info</code>) este evento no se ve — solo <code>update_pk</code> (registro) queda a nivel <code>info</code>; para volver a depurar una conexión concreta en el futuro, subir <code>hbbs</code> a <code>RUST_LOG=debug</code> es el camino a seguir.</p>
             </li>
             <li><p><strong>Conexiones simultáneas a varios clientes — confirmado por código, sin límite técnico.</strong> Revisado el código fuente de <code>rustdesk-server</code> (<code>rendezvous_server.rs</code>, <code>relay_server.rs</code>): cada conexión se gestiona en su propia tarea async (<code>tokio::spawn</code>), sin ningún límite de sesiones concurrentes en la versión OSS (ese tipo de límite solo existe en la versión Pro, como restricción de licencia, no técnica). Con 5 (o más) clientes con Solwed OS, el equipo de soporte de Solwed puede abrir una conexión simultánea a cada uno sin problema — el único límite real sería de recursos (CPU/ancho de banda de <code>erpsolwed</code> si las sesiones acaban pasando por relay en vez de P2P directo), no del software.</p></li>
-            <li><p><strong>Único pendiente real:</strong> DNS de <code>remoto.solwed.es</code> → IP del servidor, cuando el usuario pueda — cambio trivial en la plantilla, no toca el servidor ni requiere regenerar nada más de este punto.</p></li>
+            <li><p><strong>DNS resuelto — ver más arriba.</strong> Este punto queda cerrado del todo, sin nada pendiente.</p></li>
             <li><p><strong>Acceso desatendido activado en un equipo interno de oficina (no de cliente) — 2026-07-15.</strong> Caso distinto del "acceso desatendido" que este punto pide no activar por defecto para clientes: aquí es una decisión ya tomada para un equipo propio de Solwed. El servicio no arranca solo con <code>systemctl enable rustdesk</code> porque, como se documenta arriba, el <code>postinst</code> nunca llegó a copiar el fichero de la unidad — hay que copiarlo a mano una vez desde la plantilla que el propio paquete ya trae:</p>
               <pre><code>sudo cp /usr/share/rustdesk/files/systemd/rustdesk.service /usr/lib/systemd/system/rustdesk.service
 sudo systemctl daemon-reload
@@ -934,7 +941,7 @@ sudo systemctl enable --now rustdesk</code></pre>
         <div class="level-header">
           <h2 class="level-title">Bugs conocidos de la plataforma</h2>
         </div>
-        <p class="level-sub">Tres bugs de AnduinOS/Cubic/GNOME, no de la personalización de Solwed — ninguno da un error visible al fallar, así que hay que comprobarlos activamente, no esperar a que avisen.</p>
+        <p class="level-sub">Bugs de AnduinOS/Cubic/GNOME, no de la personalización de Solwed — ninguno da un error visible al fallar, así que hay que comprobarlos activamente, no esperar a que avisen.</p>
 
         <article class="card" id="bug-efi">
           <div class="card-head"><span class="badge high"><span class="dot high"></span>Crítico — comprobar en cada Generate</span></div>
@@ -1051,6 +1058,23 @@ sudo update-initramfs -u -k all</code></pre>
             </li>
           </ol>
           <div class="aviso">Deliberadamente <strong>no</strong> cubre las diapositivas de Ubiquity (<code>anduinos-installer-config</code>) — solo son relevantes en el medio de instalación en vivo, no en un sistema ya instalado recibiendo actualizaciones, que es el escenario real de este bug. Solo verificable con una actualización real de alguno de estos paquetes.</div>
+        </article>
+
+        <article class="card" id="bug-is-system-user">
+          <div class="card-head"><span class="badge high"><span class="dot high"></span>Crítico — rompe la creación de usuario, en vivo E instalado</span></div>
+          <h3 class="card-title">is_system_user() — la cuenta de rescate bloqueaba la creación del usuario principal</h3>
+          <p class="card-why">Encontrado el 2026-07-16 tras añadir <code>soporte-solwed</code> (cuenta de rescate, Nivel 3/4): el arranque live dejó de entrar solo con el usuario <code>solwed</code>, pidiendo usuario/contraseña en GDM. Diagnosticado erróneamente al principio como choque de UID exacto 1000 — el fix de mover <code>soporte-solwed</code> a UID 1001 no sirvió de nada, porque la causa real es otra.</p>
+          <ol class="steps">
+            <li><p><strong>Causa raíz real, encontrada con el primer log de arranque real conseguido</strong> (no por inspección estática del chroot, que ya se había agotado sin éxito): en <code>/usr/lib/user-setup/functions.sh</code>, la función <code>is_system_user()</code> comprueba si <code>/etc/passwd</code> ya tiene <strong>cualquier</strong> UID entre 1000 y 59999 — no un UID exacto, un rango entero — y si lo encuentra, asume "ya existe una cuenta de usuario, no crear una automática". <code>user-setup-apply</code> (invocado desde <code>casper-bottom/25adduser</code>) solo crea el usuario live si <code>! is_system_user</code>. Con <code>soporte-solwed</code> ya en el rango (da igual el UID exacto), la comprobación siempre daba positivo y toda la creación del usuario <code>solwed</code> se saltaba en silencio — incluida la configuración de autologin de GDM, que vive dentro del mismo bloque condicional.</p></li>
+            <li><p><strong>Fix — variable de escape ya soportada oficialmente por la propia función</strong>, añadida justo antes de la llamada a <code>user-setup-apply</code> en <code>casper-bottom/25adduser</code>:</p>
+              <pre><code>export OVERRIDE_SYSTEM_USER=1</code></pre>
+            </li>
+            <li><p><strong>El mismo bug reapareció al día siguiente en la instalación real</strong> (Ubiquity, no solo modo live) — Ubiquity tiene su <strong>propia copia duplicada</strong> de <code>user-setup-apply</code>/<code>functions.sh</code> (<code>/usr/lib/ubiquity/user-setup/</code>), con el mismo <code>is_system_user()</code>, que nadie había parcheado. Su plugin (<code>ubi-usersetup.py</code>) ya pasaba <code>OVERRIDE_SYSTEM_USER=1</code> para el modo OEM, pero el modo de instalación normal (el que usa cualquier cliente real) lo dejaba vacío — mismo fix, en <code>Install.prepare()</code>:</p>
+              <pre><code>environ = {'OVERRIDE_SYSTEM_USER': '1'}</code></pre>
+            </li>
+          </ol>
+          <div class="aviso"><strong>Lección general para este proyecto:</strong> cualquier fix de <code>user-setup</code>/<code>is_system_user</code> debe aplicarse en las <strong>dos</strong> copias que viven en la imagen — <code>/usr/lib/user-setup/</code> (casper, modo live) y <code>/usr/lib/ubiquity/user-setup/</code> + <code>ubi-usersetup.py</code> (instalador real) — son ficheros duplicados, no compartidos entre sí.</div>
+          <div class="tip"><strong>Cerrado y confirmado — Alpha 4.5.0 (live) y Alpha 4.5.1 (instalación real), 2026-07-16.</strong></div>
         </article>
       </section>
 
