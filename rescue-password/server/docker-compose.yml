@@ -1,0 +1,29 @@
+# Desplegar en erpsolwed junto a hbbs/hbbr/aptly. No usa network_mode: host
+# (a diferencia de hbbs) porque esto es HTTP normal — CloudPanel puede
+# reverse-proxearlo igual que hace con repo.erpsolwed.es, apuntando el site
+# remoto.erpsolwed.es (puerto 443) a 127.0.0.1:8081. Ese dominio ya sirve
+# RustDesk por sus puertos propios (21115-21119, raw TCP/UDP); un vhost
+# nginx en el 443 para esto no choca con ellos. Puerto host 8081, NO 8080:
+# el propio nginx de CloudPanel ya escucha en 8080 en este servidor
+# (confirmado con `ss -ltnp` antes de desplegar).
+#
+# Variables reales (RESCUE_ENC_KEY, DEVICE_WRITE_TOKEN, STAFF_READ_TOKEN) van
+# en un .env junto a este fichero, NUNCA commiteado — mismo criterio que el
+# resto de secretos del proyecto. Generar RESCUE_ENC_KEY con:
+#   python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+services:
+  rescue-password:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:8080"
+    environment:
+      RESCUE_DB_PATH: /data/rescue.sqlite3
+      RESCUE_ENC_KEY: ${RESCUE_ENC_KEY}
+      DEVICE_WRITE_TOKEN: ${DEVICE_WRITE_TOKEN}
+      STAFF_READ_TOKEN: ${STAFF_READ_TOKEN}
+    volumes:
+      - rescue-data:/data
+
+volumes:
+  rescue-data:

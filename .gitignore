@@ -1,3 +1,5 @@
 reference/anduinos-clean-iso/
 *:Zone.Identifier
 autofirma-installer/Autofirma_Linux_Debian.zip
+rescue-password/server/.env
+rescue-password/rescue-password.env

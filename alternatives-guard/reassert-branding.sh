@@ -70,6 +70,10 @@ if restore_if_diff "$SRC/system-files/usr/share/glib-2.0/schemas/99-anduinos-def
     glib-compile-schemas /usr/share/glib-2.0/schemas/
 fi
 restore_if_diff "$SRC/system-files/etc/gdm3/greeter.dconf-defaults" "/etc/gdm3/greeter.dconf-defaults" || true
+# El ID de rescate es dinámico por máquina, no algo que la copia estática
+# de arriba pueda contener -- reaplicarlo aquí siempre, por si la línea de
+# arriba acaba de sobreescribir el fichero y se llevó el banner por delante.
+/usr/lib/solwed/set-login-banner.sh || true
 
 # --- Identidad del sistema (base-files) ---
 restore_if_diff "$SRC/system-files/etc/os-release" "/etc/os-release" || true

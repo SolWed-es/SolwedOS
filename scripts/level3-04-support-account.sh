@@ -3,11 +3,14 @@
 #
 # EJECUTAR DENTRO del terminal chroot que abre Cubic (ya eres root ahí, sin sudo).
 #
-# IMPORTANTE: este script pide la contraseña de forma interactiva (adduser
-# la pide dos veces, tecleada, nunca como argumento) — no la pases nunca
-# como variable de entorno ni la pegues en ningún chat. Documenta la
-# contraseña elegida solo en el gestor de contraseñas interno de Solwed,
-# nunca en este repo ni en ningún sitio visible por el cliente.
+# La cuenta nace SIN contraseña utilizable (--disabled-password) — nunca hay
+# una contraseña "de fábrica" igual en todo el parque, ni siquiera hasta el
+# primer arranque. Quien fija la contraseña real, distinta por máquina, es
+# rescue-password/report-rescue-password.sh en el primer arranque real (ver
+# ese directorio), que además la registra en remoto.erpsolwed.es asociada al
+# ID de RustDesk de esa máquina para que soporte pueda consultarla en la
+# llamada. No documentar ninguna contraseña de esta cuenta a mano en ningún
+# sitio: a partir de ahora es siempre generada y por máquina.
 set -euo pipefail
 
 USERNAME="soporte-solwed"
@@ -15,7 +18,7 @@ USERNAME="soporte-solwed"
 if id "$USERNAME" &>/dev/null; then
   echo "El usuario $USERNAME ya existe, no se recrea."
 else
-  adduser --gecos "Soporte Solwed" "$USERNAME"
+  adduser --disabled-password --gecos "Soporte Solwed" "$USERNAME"
   usermod -aG sudo "$USERNAME"
 fi
 
