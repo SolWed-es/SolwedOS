@@ -8,10 +8,19 @@
 #
 # Qué hace: genera una contraseña única para soporte-solwed en ESTA máquina
 # (en vez de la compartida entre todo el parque), y la registra en
-# remoto.erpsolwed.es asociada al ID de RustDesk de esta máquina — el mismo
-# ID que el cliente ya nos lee por teléfono para conectarnos, así que no
-# hace falta ningún dato nuevo para el cliente ni saber de antemano quién
-# es, aunque se haya instalado él mismo la ISO en casa.
+# remoto.erpsolwed.es asociada a un ID de recuperación de 9 dígitos propio
+# de Solwed (ver generate_support_id() más abajo) — YA NO el ID de RustDesk
+# de la cuenta del cliente.
+#
+# Cambiado 2026-07-21: usar el ID de RustDesk tenía un fallo real detectado
+# en producción — si el disco no se borra del todo entre instalaciones (VM
+# reutilizada, partición no formateada), tanto la identidad de RustDesk del
+# cliente como el propio marcador de este script pueden sobrevivir, y la
+# "nueva" instalación termina con el mismo ID/contraseña que la anterior.
+# Generarlo nosotros mismos, con entropía real (/dev/urandom) mezclada con
+# datos de esta máquina concreta, quita la dependencia de un sistema externo
+# (RustDesk) cuya generación de identidad no controlamos ni podemos
+# garantizar que sea nueva en cada instalación.
 #
 # Pensado para lanzarse como servicio systemd (ver
 # solwed-rescue-password.service), no como autostart de usuario: no depende
@@ -23,6 +32,7 @@ grep -q boot=casper /proc/cmdline && exit 0
 STATE_DIR=/var/lib/solwed
 MARKER="$STATE_DIR/rescue-password-done"
 PW_FILE="$STATE_DIR/.rescue-password"
+ID_FILE="$STATE_DIR/.support-id"
 
 [ -f "$MARKER" ] && exit 0
 
@@ -40,45 +50,45 @@ if [ ! -f "$PW_FILE" ]; then
 fi
 PASSWORD=$(cat "$PW_FILE")
 
-# El ID de RustDesk que el cliente lee en pantalla es el de SU PROPIA
-# cuenta (cada HOME tiene su propia identidad RustDesk local) — este
-# servicio corre como root, así que "rustdesk --get-id" a secas devuelve
-# la identidad de root, no la del cliente. Hay que ejecutarlo como la
-# cuenta real del cliente. Se busca la primera cuenta de usuario "real"
-# (UID de rango normal, con HOME propio), excluyendo explícitamente
-# soporte-solwed (que se crea en el build de la imagen y por eso suele
-# quedarse con el primer UID libre, antes de que exista la cuenta real).
-TARGET_USER=""
-while IFS=: read -r uname _ uid _ _ home _; do
-    if [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] \
-        && [ "$uname" != "soporte-solwed" ] && [ -d "$home" ]; then
-        TARGET_USER="$uname"
-        break
-    fi
-done < <(getent passwd)
+# ID de recuperación de 9 dígitos, propio de Solwed — no depende de
+# RustDesk ni de ninguna cuenta de usuario en concreto.
+#
+# Mezcla varias fuentes de entropía con SHA-256 en vez de concatenar
+# dígitos a pelo: si solo usáramos fecha/hora + MAC tal cual, varias
+# máquinas clonadas de la misma plantilla casi en el mismo instante
+# (caso real: una tanda de VMs de pruebas) podrían generar IDs muy
+# parecidos o incluso iguales — el hash desordena eso por completo
+# (efecto avalancha: una diferencia mínima en la entrada cambia el
+# hash entero). /dev/urandom sigue siendo la fuente principal de
+# aleatoriedad real; el resto son "sal" adicional, no imprescindible
+# por sí sola pero barata de añadir.
+#
+# Nota sobre `head -c 32 /dev/urandom`: a diferencia del bug ya
+# conocido en este mismo fichero (tr | head cortando la tubería y
+# matando a tr con SIGPIPE bajo pipefail), aquí head lee un FICHERO
+# directamente (no una tubería infinita desde otro proceso) y decide
+# él mismo cuándo parar — no hay ningún proceso aguas arriba al que
+# matar, así que no hace falta el mismo workaround de pipefail.
+generate_support_id() {
+    local mac entropy hash num
+    mac=$(cat /sys/class/net/*/address 2>/dev/null | grep -v '^00:00:00:00:00:00$' | head -n1)
+    entropy="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')|$(date +%s%N)|${mac:-sin-mac}|$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)|$(hostname)"
+    hash=$(printf '%s' "$entropy" | sha256sum | cut -d' ' -f1)
+    # 15 hex = 60 bits, cabe de sobra en el entero de 64 bits con signo
+    # que usa la aritmética de bash sin desbordar.
+    num=$((16#${hash:0:15}))
+    printf '%d' $(( num % 900000000 + 100000000 ))
+}
 
-RUSTDESK_ID=""
-if [ -n "$TARGET_USER" ]; then
-    for _ in $(seq 1 30); do
-        ID_ATTEMPT=$(runuser -l "$TARGET_USER" -c 'rustdesk --get-id' 2>/dev/null || true)
-        if [ -n "$ID_ATTEMPT" ] && [ "$ID_ATTEMPT" != "0" ]; then
-            RUSTDESK_ID="$ID_ATTEMPT"
-            break
-        fi
-        sleep 2
-    done
+if [ ! -f "$ID_FILE" ]; then
+    umask 077
+    generate_support_id > "$ID_FILE"
 fi
+SUPPORT_ID=$(cat "$ID_FILE")
 
-if [ -z "$RUSTDESK_ID" ]; then
-    echo "RustDesk todavía no tiene ID asignado, se reintentará en el próximo arranque." >&2
-    exit 1
-fi
-
-# Persistimos el ID y lo aplicamos ya al banner de la pantalla de login,
-# independientemente de si el envío al servidor (más abajo) tiene éxito o
-# no -- el cliente debe poder leer su ID en pantalla aunque esta máquina
-# no haya tenido internet todavía.
-printf '%s' "$RUSTDESK_ID" > "$STATE_DIR/.rustdesk-id"
+# Aplicamos ya el banner de login independientemente de si el envío al
+# servidor (más abajo) tiene éxito o no -- el cliente debe poder leer su
+# ID en pantalla aunque esta máquina no haya tenido internet todavía.
 /usr/lib/solwed/set-login-banner.sh || true
 
 # DEVICE_TOKEN se inyecta vía EnvironmentFile del .service (no hornear el
@@ -91,12 +101,16 @@ HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' \
     -X POST "https://remoto.erpsolwed.es/rescue-credentials" \
     -H "Authorization: Bearer ${DEVICE_TOKEN}" \
     -H 'Content-Type: application/json' \
-    -d "{\"rustdesk_id\":\"${RUSTDESK_ID}\",\"password\":\"${PASSWORD}\"}") || HTTP_CODE=000
+    -d "{\"rustdesk_id\":\"${SUPPORT_ID}\",\"password\":\"${PASSWORD}\"}") || HTTP_CODE=000
 
 case "$HTTP_CODE" in
     200|201|409)
         # 409 = ya estaba registrado (p.ej. un intento anterior sí llegó
         # pero el marcador local se perdió) — se trata igual como éxito.
+        # Con un ID propio de 9 dígitos generado por hash, una colisión
+        # real con OTRA máquina distinta es astronómicamente improbable
+        # (espacio de ~900 millones de valores) frente al caso normal de
+        # ser un reintento de esta misma máquina.
         touch "$MARKER"
         exit 0
         ;;

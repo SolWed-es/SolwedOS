@@ -596,3 +596,28 @@ polkit.addRule(function(action, subject) {
 Instalación vía `scripts/level3-05-polkit-no-prompt.sh` (mismo patrón que el resto de Nivel 3: copiar el `.rules` a `custom-root/root/` desde el host con `sudo`, ejecutar el script dentro del terminal chroot de Cubic) — `install -m 644 -o root -g root`, sin necesitar ningún comando de recarga, `polkitd` recoge ficheros nuevos solo.
 
 **Sintaxis validada** (`node --check` sobre una copia del fichero con extensión `.js`, y `bash -n` sobre el script) y **ya aplicado en `custom-root`, verificado por checksum** (`sudo md5sum`/`sudo stat` del usuario: idéntico al fichero del repo, permisos `644 root:root`) — esta sesión no puede leer directamente `custom-root/etc/polkit-1/rules.d/` (750, sin TTY para sudo). Etiquetado como **Alpha 4.8.1**. Pendiente, ya solo de infraestructura: generar la ISO y confirmar con boot-test real que, tras iniciar sesión una vez, ninguna acción admin vuelve a pedir nada durante esa sesión.
+
+## El ID de recuperación deja de depender de RustDesk — bug real encontrado, generación propia (2026-07-21)
+
+**Bug real reportado por el usuario tras instalar "la última versión":** dos instalaciones distintas del mismo cliente terminaron mostrando el mismo ID en la pantalla de login. Causa más probable, no una única confirmada: la instalación no partió de disco realmente vacío (VM o partición reutilizada sin formatear de cero), lo que puede dejar sobrevivir dos cosas de la instalación anterior — la propia identidad de RustDesk del cliente en `~/.config/rustdesk/` (RustDesk solo genera un ID nuevo si no encuentra uno ya guardado) y/o el marcador de `report-rescue-password.sh` (`/var/lib/solwed/rescue-password-done`), que hace que el script ni siquiera reintente el registro porque cree que ya se hizo.
+
+**Decisión: dejar de depender del ID de RustDesk del todo.** A partir de ahora Solwed genera su propio ID de recuperación de 9 dígitos, sin relación con la identidad de RustDesk de nadie — quita la dependencia de un sistema externo cuya generación de identidad no se controla, y **simplifica bastante el script**: desaparece toda la lógica que esperaba (hasta 60s, reintentando cada 2s) a que RustDesk asignara un ID, y la heurística para encontrar la cuenta "real" del cliente excluyendo `soporte-solwed`.
+
+**Algoritmo, en `report-rescue-password.sh`:** mezcla `/dev/urandom` (32 bytes, la fuente principal de aleatoriedad real) con fecha/hora a nanosegundo, la MAC de la máquina, el `boot_id` del kernel (`/proc/sys/kernel/random/boot_id`, un UUID que el propio kernel regenera en cada arranque) y el hostname, todo junto por `SHA-256` en vez de concatenar dígitos a pelo — el efecto avalancha del hash desordena por completo cualquier parecido entre máquinas clonadas de la misma plantilla casi en el mismo instante, que es precisamente el escenario que causó el bug original. Los primeros 15 caracteres hexadecimales del hash (60 bits, no desborda el entero de 64 bits con signo de la aritmética de bash) se reducen módulo 900.000.000 más un desplazamiento de 100.000.000, dando siempre un número de 9 dígitos sin cero inicial:
+
+```bash
+entropy="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')|$(date +%s%N)|$mac|$(cat /proc/sys/kernel/random/boot_id)|$(hostname)"
+hash=$(printf '%s' "$entropy" | sha256sum | cut -d' ' -f1)
+num=$((16#${hash:0:15}))
+printf '%d' $(( num % 900000000 + 100000000 ))
+```
+
+Nota sobre `head -c 32 /dev/urandom`: a diferencia del bug ya conocido en este mismo fichero (`tr | head` cortando la tubería y matando a `tr` con `SIGPIPE` bajo `pipefail`, documentado más arriba), aquí `head` lee un fichero directamente y decide él mismo cuándo parar — no hay ningún proceso aguas arriba al que matar, así que no hace falta el mismo workaround.
+
+El ID generado se persiste en `/var/lib/solwed/.support-id` (antes `.rustdesk-id`) **antes** de intentar el envío al servidor, mismo patrón ya usado para la contraseña — los reintentos del servicio systemd reutilizan el mismo ID ya generado, no generan uno distinto en cada intento. El servidor (`soporte-solwed.py`) no necesitó ningún cambio: ya validaba que `rustdesk_id` fuera numérico de ≥6 dígitos, y un ID de 9 dígitos lo cumple de sobra; se deja el nombre del campo/columna tal cual para no tocar el esquema en producción.
+
+**Probado en local antes de escribir el cambio definitivo:** 200 generaciones con MAC y timestamp idénticos (simulando el caso real que causó el bug) dieron siempre 9 dígitos, siempre dentro de rango, **cero colisiones** — la aleatoriedad real de `/dev/urandom` domina sobre la "sal" determinista añadida.
+
+**Texto del banner de login actualizado** de "ID de soporte" a **"ID de recuperación"** (`set-login-banner.sh`, ahora lee `/var/lib/solwed/.support-id`), para que nadie confunda este ID con el ID real de RustDesk que se usa en una llamada de soporte atendido normal — a partir de ahora son dos IDs distintos y no deben mezclarse.
+
+**Pendiente:** solo escrito y probado en local, todavía no horneado en `custom-root` ni probado con boot-test real en la próxima ISO.
