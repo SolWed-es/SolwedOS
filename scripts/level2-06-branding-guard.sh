@@ -37,6 +37,15 @@ if [ ! -f "$SRC/reassert-branding.sh" ] || [ ! -f "$SRC/99-solwedos-branding-gua
 fi
 
 echo "==> Copiando las fuentes de restauración a $DEST_ROOT"
+# `cp -r` sobre un directorio que ya existe MEZCLA, no sustituye — un
+# fichero borrado del repo (p.ej. al renombrar un icono a su nombre real)
+# se queda huérfano para siempre en $DEST_ROOT de una ejecución a la
+# siguiente. Bug real encontrado 2026-07-21: ese sobrante volvía a
+# clobbear el icono de Software/FacturaScripts justo después de que este
+# mismo script lo arreglara, en la misma pasada, por procesarse después
+# alfabéticamente. Por eso se borra $DEST_ROOT entero antes de copiar —
+# así siempre queda un espejo exacto del repo, nunca acumula basura.
+rm -rf "$DEST_ROOT"
 mkdir -p "$DEST_ROOT"
 cp -r "$SRC/icons" "$DEST_ROOT/"
 cp -r "$SRC/cursors" "$DEST_ROOT/"

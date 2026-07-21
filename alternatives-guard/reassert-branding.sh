@@ -33,6 +33,17 @@ restore_if_diff() {
 }
 
 # --- Iconos de apps (anduinos-fluent-icon-theme, anduinos-appearance) ---
+# IMPORTANTE: muchos "iconos" de este tema son en realidad symlinks a otro
+# fichero real (p.ej. org.gnome.Software.svg -> gnome-software.svg, o
+# preferences-system-network.svg -> network-workgroup.svg) -- `cp` sigue el
+# symlink y escribe en el destino real. Los ficheros de esta carpeta DEBEN
+# estar trackeados con el NOMBRE REAL (el que devuelve `readlink`), nunca
+# con el nombre del symlink/alias -- si no, un `cp` puede clobbearse en un
+# fichero real distinto al que alguien creía estar arreglando (bug real
+# encontrado 2026-07-21: el icono de Software/FacturaScripts se revirtió a
+# azul porque el repo lo trackeaba como org.gnome.Software.svg en vez de
+# gnome-software.svg, su nombre real). Antes de añadir un icono nuevo aquí,
+# comprobar con `readlink` si el destino en custom-root es un symlink.
 if [ -d "$SRC/icons/Fluent-yellow/scalable/apps" ]; then
     for f in "$SRC/icons/Fluent-yellow/scalable/apps/"*.svg; do
         name="$(basename "$f")"
@@ -50,6 +61,12 @@ fi
 # básicos como default/text/sus alias nunca llevaron azul que corregir, así
 # que no están aquí a propósito) -> comparar archivo a archivo, no todo el
 # directorio, para no reportar diferencia en cada ejecución por su ausencia.
+#
+# MISMO RIESGO que los iconos de arriba: bastantes cursores de este tema son
+# symlinks a otro fichero real (p.ej. watch -> wait, nw-resize ->
+# top_left_corner) -- auditado 2026-07-21, sin divergencia activa hoy, pero
+# si algún cursor se recolorea a mano en el futuro, trackearlo aquí con el
+# nombre REAL (`readlink -f`), no con el del symlink/alias.
 for theme in Fluent-cursors Fluent-dark-cursors; do
     [ -d "$SRC/cursors/$theme/cursors" ] || continue
     for f in "$SRC/cursors/$theme/cursors/"*; do
@@ -65,6 +82,16 @@ if restore_if_diff "$SRC/system-files/etc/dconf/db/anduinos.d/03-system-extensio
     needs_dconf=1
 fi
 if restore_if_diff "$SRC/system-files/etc/dconf/db/anduinos.d/10-arcmenu.conf" "/etc/dconf/db/anduinos.d/10-arcmenu.conf"; then
+    needs_dconf=1
+fi
+# gnome-shell-extension-simple-weather: is-activated=false (no true) a
+# propósito desde 2026-07-21 — con true, la extensión se salta su propia
+# autoconfiguración de primer arranque (detecta la ciudad real del cliente
+# por IP vía ipapi.co) y el widget del tiempo queda sin ubicación para
+# siempre, dando "Error!" tenga o no tenga internet. Con false, el usuario
+# ve una única pantalla de bienvenida (un clic) la primera vez y la
+# ubicación se detecta sola.
+if restore_if_diff "$SRC/system-files/etc/dconf/db/anduinos.d/18-simple-weather.conf" "/etc/dconf/db/anduinos.d/18-simple-weather.conf"; then
     needs_dconf=1
 fi
 if restore_if_diff "$SRC/system-files/usr/share/glib-2.0/schemas/99-anduinos-defaults.gschema.override" "/usr/share/glib-2.0/schemas/99-anduinos-defaults.gschema.override"; then
