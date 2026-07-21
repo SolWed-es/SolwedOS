@@ -551,26 +551,23 @@ picture-options='zoom'</code></pre>
         </article>
 
         <article class="card" id="item-oslogo">
-          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge done">✓ Hecho — Alpha 1.0</span></div>
+          <div class="card-head"><span class="badge low"><span class="dot low"></span>Riesgo bajo</span> <span class="badge done">✓ Hecho — texto Alpha 1.0, logo del "Acerca de" y versión corregidos 2026-07-21</span></div>
           <h3 class="card-title">Identidad del sistema ("Acerca de")</h3>
-          <p class="card-why">Que Ajustes → Acerca de, y cualquier script que consulte la versión del SO, muestren "Solwed OS".</p>
+          <p class="card-why">Que Ajustes → Sistema → Acerca de, y cualquier script que consulte la versión del SO, muestren "Solwed OS" — texto <strong>y</strong> logo, no solo uno de los dos.</p>
           <div class="files">
-            <span class="file-chip">/etc/os-release</span>
-            <span class="file-chip">/etc/lsb-release</span>
+            <span class="file-chip">branding/system-files/etc/os-release</span>
+            <span class="file-chip">branding/system-files/etc/lsb-release</span>
+            <span class="file-chip">branding/system-files/usr/share/pixmaps/ubuntu-logo-text*.{svg,png}</span>
           </div>
           <ol class="steps">
-            <li><p>Edita <code>/etc/os-release</code> — <strong>los valores reales de AnduinOS son distintos de un Ubuntu genérico</strong>, y hay que conservarlos o apt/scripts que dependen de ellos se rompen:</p>
-              <pre><code>NAME="Solwed OS"
-PRETTY_NAME="Solwed OS Alpha 3.3"
-ID=solwedos
-ID_LIKE=<span class="fl">debian</span>          <span class="cmt"># no "ubuntu" — AnduinOS usa debian aquí</span>
-VERSION_CODENAME=<span class="fl">resolute</span>   <span class="cmt"># no "noble"</span>
-UBUNTU_CODENAME=resolute      <span class="cmt"># se mantiene, apt lo resuelve contra esto</span>
-HOME_URL="https://solwed.es"
-SUPPORT_URL="https://solwed.es/soporte"
-BUG_REPORT_URL="https://solwed.es/soporte"</code></pre>
+            <li><p><strong>Texto ya corregido desde Alpha 1.0</strong> — <code>/etc/os-release</code>/<code>/etc/lsb-release</code>, valores reales conservados de AnduinOS donde hace falta (<code>ID_LIKE=debian</code>, no <code>ubuntu</code>; <code>VERSION_CODENAME=resolute</code>, no <code>noble</code>; <code>UBUNTU_CODENAME=resolute</code> se mantiene, apt lo resuelve contra esto).</p></li>
+            <li><p><strong>Bug real encontrado 2026-07-21: el logo grande seguía diciendo "ANDUINOS" pese a que el texto ya decía "Solwed OS".</strong> Causa: <code>gnome-control-center</code> (el "Acerca de" vive ahí) <strong>no usa el mecanismo genérico <code>distributor-logo</code></strong> de los temas de iconos (ese sí estaba bien, es solo un engranaje gris genérico) — tiene la ruta escrita a fuego en el propio binario, confirmado con <code>strings</code>: <code>/usr/share/pixmaps/ubuntu-logo-text.svg</code> / <code>ubuntu-logo-text-dark.svg</code> (más los <code>.png</code> hermanos), del paquete <code>base-files</code>. AnduinOS había reexportado ese wordmark cambiando "UBUNTU" por "ANDUINOS" pero conservó el nombre de fichero heredado de Ubuntu.</p>
+              <p><strong>Fix:</strong> reemplazados los 4 ficheros reutilizando el mismo logo ya usado en el banner de GDM ("Solwed OS" + marca "W." amarilla) — variante clara con texto gris oscuro (<code>#333333</code>) generada por recoloreo de píxeles a partir de la oscura ya existente (mismo blanco→color que <code>recolor_svg_icons.py</code>, aplicado aquí directo sobre el PNG con Pillow), variante oscura reutilizada tal cual. Los <code>.svg</code> son un wrapper mínimo embebiendo el PNG en base64 (mismo truco ya usado para el icono de ArcMenu) — no había SVG vectorial de origen para este wordmark.</p>
+              <p><strong>Registrado en el guardián de marca</strong> (<code>alternatives-guard/reassert-branding.sh</code>, sección "Identidad del sistema (base-files)") — sin esto, una actualización futura de <code>base-files</code> revertiría el logo a "ANDUINOS" en silencio, mismo patrón que ya rompió el splash de arranque una vez (ver <a href="#bugs-conocidos">Bugs conocidos</a>).</p>
             </li>
-            <li><p>Edita <code>/etc/lsb-release</code> en paralelo, igual que el plan original.</p></li>
+            <li><p><strong>Versión actualizada el mismo día, decisión del usuario: "Solwed OS 1.0 (Alpha)" → "Solwed OS Beta 1.0.1"</strong> (la fase Alpha se declaró cerrada en el commit 4.8.1). <code>PRETTY_NAME</code>/<code>VERSION</code>/<code>VERSION_ID</code> en <code>os-release</code>, y <code>DISTRIB_RELEASE</code>/<code>DISTRIB_DESCRIPTION</code> en <code>lsb-release</code>, en paralelo.</p>
+              <div class="aviso"><strong>Para el usuario, referencia rápida de futuros cambios de versión:</strong> el fichero a editar SIEMPRE es <code>branding/system-files/etc/os-release</code> (y <code>lsb-release</code>) <strong>en el repo</strong>, nunca solo el <code>/etc/os-release</code> vivo de <code>custom-root</code> — ese fichero del repo es la fuente que <code>reassert-branding.sh</code> usa para restaurar, así que un cambio hecho solo en <code>custom-root</code> se perdería en la siguiente actualización de <code>base-files</code>. Tras editar el repo, copiar el fichero actualizado tanto a <code>custom-root/etc/os-release</code> (aplica ya) como a <code>custom-root/usr/share/solwed/branding-guard/system-files/etc/os-release</code> (la copia de referencia del guardián) — o, más simple, volver a copiar toda la carpeta <code>branding/system-files/</code> a <code>/root/branding-guard-src/system-files/</code> y re-ejecutar <code>scripts/level2-06-branding-guard.sh</code> en el chroot, que hace las dos cosas de una vez (es idempotente, pensado para poder relanzarse).</div>
+            </li>
           </ol>
         </article>
 

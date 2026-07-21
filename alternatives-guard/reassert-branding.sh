@@ -9,7 +9,8 @@
 # cualquier actualización relevante, venga de apt, GNOME Software
 # (PackageKit) o unattended-upgrades. Paquetes con al menos un archivo aquí:
 # anduinos-fluent-icon-theme, anduinos-appearance, gnome-shell-extension-arcmenu,
-# anduinos-dconf-defaults, grub2-common, base-files.
+# anduinos-dconf-defaults, grub2-common, base-files (os-release/lsb-release
+# y el logo "Acerca de" de Ajustes → Sistema).
 #
 # Disparado por el mismo mecanismo que reassert-alternatives.sh
 # (DPkg::Post-Invoke), tras cualquier operación de dpkg/apt.
@@ -78,6 +79,15 @@ restore_if_diff "$SRC/system-files/etc/gdm3/greeter.dconf-defaults" "/etc/gdm3/g
 # --- Identidad del sistema (base-files) ---
 restore_if_diff "$SRC/system-files/etc/os-release" "/etc/os-release" || true
 restore_if_diff "$SRC/system-files/etc/lsb-release" "/etc/lsb-release" || true
+
+# --- Logo de Ajustes -> Sistema -> Acerca de (base-files) ---
+# gnome-control-center tiene la ruta escrita a fuego en el propio binario
+# (confirmado con `strings`) -- no usa el mecanismo generico distributor-logo
+# de los themes de iconos. Sin este fix se ve el wordmark "ANDUINOS" que
+# AnduinOS reexportó sobre la plantilla original de Ubuntu.
+for f in ubuntu-logo-text.svg ubuntu-logo-text.png ubuntu-logo-text-dark.svg ubuntu-logo-text-dark.png; do
+    restore_if_diff "$SRC/system-files/usr/share/pixmaps/$f" "/usr/share/pixmaps/$f" || true
+done
 
 # --- GRUB (grub2-common) ---
 if restore_if_diff "$SRC/system-files/etc/default/grub" "/etc/default/grub"; then
