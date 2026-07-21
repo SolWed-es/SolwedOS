@@ -11,6 +11,7 @@ gtk-theme='Fluent-round-yellow-Dark'
 icon-theme='Fluent-yellow-dark'
 cursor-theme='Fluent-dark-cursors'
 cursor-size=32
+accent-color='yellow'
 enable-hot-corners=false
 font-antialiasing='grayscale'
 font-hinting='slight'
