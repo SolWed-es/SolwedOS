@@ -1,0 +1,22 @@
+// Solwed OS - el administrador ya se autentico al iniciar sesion; no volver
+// a pedir contrasena ni confirmacion para acciones que requieren admin
+// durante esa misma sesion (instalar software, cambiar ajustes del
+// sistema, el instalador de FacturaScripts, etc.). Decision de negocio
+// explicita 2026-07-21: prioriza comodidad sobre el paso extra de "estas
+// seguro" que da polkit en cada accion privilegiada - mismo comportamiento
+// que una cuenta administradora de Windows/Mac tras iniciar sesion.
+//
+// Prefijo 00- a proposito: polkit evalua los ficheros de rules.d por orden
+// alfabetico del NOMBRE DE FICHERO entre todos los directorios de rules.d
+// combinados (no por directorio), y la primera funcion addRule() que
+// devuelve un valor (distinto de "undefined") gana - ver polkit(8),
+// seccion AUTHORIZATION RULES. Con 00- se evalua antes que cualquier otra
+// regla del sistema (49-ubuntu-admin.rules, 50-default.rules,
+// com.ubuntu.desktop.rules, gnome-control-center.rules, etc.), así que
+// esta regla decide siempre para cualquier accion, sin depender de que
+// ninguna otra regla mas especifica la cubra primero.
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("sudo") && subject.active && subject.local) {
+        return polkit.Result.YES;
+    }
+});

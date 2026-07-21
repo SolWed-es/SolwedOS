@@ -574,3 +574,25 @@ Hasta ahora, consultar una contraseña ya registrada solo era posible a mano con
 **Ajuste final el mismo día: `/soporte` pasó de `GET` a `POST`**, a petición del usuario — no quería el ID visible en la barra de direcciones, el historial del navegador ni los logs de acceso (el ID no es secreto en sí mismo, pero no había razón para dejarlo ahí). Separado en `GET /soporte` (solo pinta el formulario vacío, ya no acepta el ID como query param) y `POST /soporte` (`rustdesk_id: str = Form(...)`, hace la consulta real), compartiendo el render vía una función auxiliar común. Requirió añadir `python-multipart` a `requirements.txt` — FastAPI lo exige para parsear formularios y no hacía falta hasta tener uno. Probado en local antes de desplegar y verificado en real después: 401 sin credenciales, formulario vacío por `GET`, contraseña correcta por `POST` con el token.
 
 Con esto, el ítem "Contraseña de rescate" del manual queda cerrado por completo, sin nada pendiente.
+
+## Admin sin confirmación repetida — decisión de negocio, escrito y probado en local, pendiente de hornear (2026-07-21)
+
+Petición real: a un usuario normal le resulta molesto tener que teclear su contraseña cada vez que una acción pide permisos de administrador. Se planteó la duda al usuario con las dos opciones reales sobre la mesa — una lista curada de acciones "seguras" (mismo mecanismo que ya usa Ubuntu de fábrica en `com.ubuntu.desktop.rules` para montar discos, cambiar hora, etc.) frente a quitar la confirmación del todo para cualquier acción admin — y **eligió la segunda, con el trade-off de seguridad explícito ya aceptado**: mientras la sesión del administrador siga activa, cualquier acción que pida permisos admin se aprueba sola, sin pedir contraseña ni ningún tipo de confirmación — igual que una cuenta administradora de Windows/Mac tras iniciar sesión.
+
+**Mecanismo: reglas de polkit (`/etc/polkit-1/rules.d/*.rules`, JavaScript), no `sudo`** — son sistemas totalmente distintos; `sudo` en terminal ya cachea 15 min por defecto y no se ha tocado. Nueva regla, `polkit/00-solwed-admin-no-prompt.rules`:
+
+```js
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("sudo") && subject.active && subject.local) {
+        return polkit.Result.YES;
+    }
+});
+```
+
+**El prefijo `00-` del nombre de fichero no es cosmético — es la parte que hace que la regla funcione de verdad.** Verificado leyendo el manual real de `polkit(8)` (no adivinado): polkit combina los ficheros de *todos* los directorios de `rules.d` y los ordena por el nombre de fichero (no por directorio), y la primera función `addRule()` que devuelve un valor distinto de `undefined` gana, deteniendo la evaluación ahí mismo. Con `00-` se evalúa antes que cualquier otra regla del sistema (`49-ubuntu-admin.rules`, `50-default.rules`, `com.ubuntu.desktop.rules`, `gnome-control-center.rules`...), así que decide siempre para cualquier acción, sin depender de que ninguna regla más específica la cubra antes.
+
+**No hace falta meterlo bajo `alternatives-guard`/`branding-guard`.** Es un fichero nuevo que ningún paquete posee — `polkitd` nunca lo instala ni lo conoce, así que ninguna actualización de `apt` lo va a tocar ni revertir; esa clase de bug (documentada en `CLAUDE.md`, sección "Update-survival") solo afecta a ficheros que *editamos* y que ya pertenecen a un paquete `anduinos-*`.
+
+Instalación vía `scripts/level3-05-polkit-no-prompt.sh` (mismo patrón que el resto de Nivel 3: copiar el `.rules` a `custom-root/root/` desde el host con `sudo`, ejecutar el script dentro del terminal chroot de Cubic) — `install -m 644 -o root -g root`, sin necesitar ningún comando de recarga, `polkitd` recoge ficheros nuevos solo.
+
+**Sintaxis validada** (`node --check` sobre una copia del fichero con extensión `.js`, y `bash -n` sobre el script) pero **nada de esto está horneado en `custom-root` todavía ni probado con un boot-test real** — solo escrito y verificado en el repo. Pendiente: aplicar el script en el próximo Cubic y confirmar en real que, tras iniciar sesión una vez, ninguna acción admin vuelve a pedir nada durante esa sesión.

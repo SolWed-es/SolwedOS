@@ -486,6 +486,7 @@ Plymouth: el tema base a forkear es <span class="fl">anduinos</span> (módulo tw
             <li><a href="#item-desktop-shortcut">Iconos de escritorio</a></li>
             <li><a href="#item-locale">Región e idioma</a></li>
             <li><a href="#item-browser">Navegador</a></li>
+            <li><a href="#item-polkit-admin">Admin sin confirmación repetida</a></li>
           </ol>
         </li>
         <li>
@@ -494,6 +495,7 @@ Plymouth: el tema base a forkear es <span class="fl">anduinos</span> (módulo tw
             <li><a href="#item-repo">Repositorio APT propio</a></li>
             <li><a href="#item-wizard">Asistente de bienvenida</a></li>
             <li><a href="#item-support">Soporte remoto</a></li>
+            <li><a href="#item-rescue-password">Contraseña de rescate</a></li>
           </ol>
         </li>
         <li>
@@ -817,6 +819,31 @@ sources=[('xkb', 'es+winkeys')]</code></pre>
           <h3 class="card-title">Navegador por defecto</h3>
           <p class="card-why"><strong>El plan cambió respecto al original:</strong> no se mantuvo el Firefox propio de AnduinOS con <code>policies.json</code> — se desinstaló Firefox por completo y se instaló <strong>Brave</strong> en su lugar. Homepage/marcadores de Brave sin configurar todavía (pendiente si se retoma).</p>
           <div class="aviso"><strong>Recordatorio:</strong> cualquier cambio de navegador obliga a revisar pines huérfanos en ArcMenu (ver <a href="#item-panel">Menú de inicio</a> arriba) y, si el nuevo navegador es Chromium/Brave, la confianza de certificados NSS por usuario es distinta de Firefox (ver Autofirma en <a href="#item-apps">Apps preinstaladas</a>).</div>
+        </article>
+
+        <article class="card" id="item-polkit-admin">
+          <div class="card-head"><span class="badge med"><span class="dot med"></span>Riesgo medio</span> <span class="badge todo">○ Pendiente — escrito y probado en local 2026-07-21, falta hornear en la imagen y boot-test</span></div>
+          <h3 class="card-title">Admin sin confirmación repetida</h3>
+          <p class="card-why">Petición de negocio: a un usuario normal le resulta molesto tener que teclear su contraseña cada vez que una acción pide permisos de administrador (instalar software, cambiar ajustes, el instalador de FacturaScripts...). <strong>Decisión explícita, con el trade-off ya sobre la mesa:</strong> quitar del todo esa confirmación para cualquier acción admin durante la sesión — igual que una cuenta administradora de Windows/Mac tras iniciar sesión — en vez de una lista curada de acciones "seguras" (la opción más conservadora, descartada a favor de la comodidad total).</p>
+          <div class="files">
+            <span class="file-chip">polkit/00-solwed-admin-no-prompt.rules</span>
+            <span class="file-chip">scripts/level3-05-polkit-no-prompt.sh</span>
+          </div>
+          <ol class="steps">
+            <li><p><strong>Mecanismo: reglas de polkit, no <code>sudo</code>.</strong> Los diálogos de "Autenticación requerida" los gestiona <code>polkitd</code> (JavaScript en <code>/etc/polkit-1/rules.d/*.rules</code>), un sistema totalmente aparte de <code>sudo</code>/terminal (que ya cachea 15 min por defecto vía <code>/etc/sudoers</code>, sin tocar). Una regla propia puede devolver <code>polkit.Result.YES</code> para cualquier acción sin pedir nada, para un subconjunto de usuarios/condiciones.</p></li>
+            <li><p><strong>Orden de evaluación — verificado contra el manual real de <code>polkit(8)</code>, no adivinado.</strong> Todos los ficheros de todos los directorios de <code>rules.d</code> se combinan y ordenan por el <em>nombre de fichero</em>, no por directorio; la primera función <code>addRule()</code> que devuelve un valor (no <code>undefined</code>) gana y para ahí la evaluación. Por eso el fichero lleva el prefijo <code>00-</code>: se evalúa antes que <code>49-ubuntu-admin.rules</code>, <code>50-default.rules</code>, <code>com.ubuntu.desktop.rules</code>, <code>gnome-control-center.rules</code>, etc. — decide siempre, sin depender de si alguna regla más específica también cubriría esa acción.</p></li>
+            <li><p><strong>La regla en sí:</strong></p>
+              <pre><code>polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("sudo") && subject.active && subject.local) {
+        return polkit.Result.YES;
+    }
+});</code></pre>
+              <p><code>active</code>+<code>local</code> exige sesión gráfica activa en la propia máquina (no aplica a conexiones remotas D-Bus ni a sesiones en segundo plano); <code>isInGroup("sudo")</code> es el mismo grupo que ya usan <code>49-ubuntu-admin.rules</code>/<code>50-default.rules</code> de fábrica para decidir quién es administrador.</p>
+            </li>
+            <li><p><strong>No hace falta <code>alternatives-guard</code>/<code>branding-guard</code> para este fichero.</strong> Es un fichero nuevo que ningún paquete posee — <code>polkitd</code> nunca lo instala ni lo conoce, así que ninguna actualización de <code>apt</code> lo va a tocar ni revertir. Esa clase de bug (ver <a href="#bugs-conocidos">Bugs conocidos</a>) solo afecta a ficheros que <em>editamos</em> y que ya pertenecen a un paquete <code>anduinos-*</code>.</p></li>
+            <li><p><strong>Instalación:</strong> <code>scripts/level3-05-polkit-no-prompt.sh</code>, mismo patrón que el resto de scripts de Nivel 3 — copiar primero el <code>.rules</code> a <code>custom-root/root/</code> desde una terminal normal del host con <code>sudo</code>, luego ejecutar el script dentro del terminal chroot de Cubic. <code>install -m 644 -o root -g root</code>, sin necesitar ningún comando de recarga: <code>polkitd</code> vigila el directorio y recoge ficheros nuevos solo.</p></li>
+          </ol>
+          <div class="aviso"><strong>Trade-off de seguridad, explícito y ya aceptado:</strong> con esta regla, cualquier acción que pida permisos de admin (incluida instalar un <code>.deb</code> descargado de cualquier sitio, o cambios de red/usuarios) se aprueba sola mientras la sesión del administrador siga activa — no solo se deja de pedir la contraseña, se deja de pedir <em>cualquier</em> confirmación. Es el mismo nivel de confianza que un Administrador de Windows/Mac ya da por hecho, pero merece la pena tenerlo documentado aquí explícitamente por si el criterio cambia más adelante. <strong>Pendiente real:</strong> hornear el fichero en el chroot y confirmar con boot-test que, tras iniciar sesión una vez, ninguna acción admin vuelve a pedir nada durante esa sesión.</div>
         </article>
       </section>
 
