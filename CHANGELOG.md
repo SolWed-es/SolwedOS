@@ -575,7 +575,7 @@ Hasta ahora, consultar una contraseña ya registrada solo era posible a mano con
 
 Con esto, el ítem "Contraseña de rescate" del manual queda cerrado por completo, sin nada pendiente.
 
-## Admin sin confirmación repetida — decisión de negocio, escrito y probado en local, pendiente de hornear (2026-07-21)
+## Admin sin confirmación repetida — Alpha 4.8.1, decisión de negocio, aplicado en custom-root, pendiente de boot-test (2026-07-21)
 
 Petición real: a un usuario normal le resulta molesto tener que teclear su contraseña cada vez que una acción pide permisos de administrador. Se planteó la duda al usuario con las dos opciones reales sobre la mesa — una lista curada de acciones "seguras" (mismo mecanismo que ya usa Ubuntu de fábrica en `com.ubuntu.desktop.rules` para montar discos, cambiar hora, etc.) frente a quitar la confirmación del todo para cualquier acción admin — y **eligió la segunda, con el trade-off de seguridad explícito ya aceptado**: mientras la sesión del administrador siga activa, cualquier acción que pida permisos admin se aprueba sola, sin pedir contraseña ni ningún tipo de confirmación — igual que una cuenta administradora de Windows/Mac tras iniciar sesión.
 
@@ -595,4 +595,4 @@ polkit.addRule(function(action, subject) {
 
 Instalación vía `scripts/level3-05-polkit-no-prompt.sh` (mismo patrón que el resto de Nivel 3: copiar el `.rules` a `custom-root/root/` desde el host con `sudo`, ejecutar el script dentro del terminal chroot de Cubic) — `install -m 644 -o root -g root`, sin necesitar ningún comando de recarga, `polkitd` recoge ficheros nuevos solo.
 
-**Sintaxis validada** (`node --check` sobre una copia del fichero con extensión `.js`, y `bash -n` sobre el script) pero **nada de esto está horneado en `custom-root` todavía ni probado con un boot-test real** — solo escrito y verificado en el repo. Pendiente: aplicar el script en el próximo Cubic y confirmar en real que, tras iniciar sesión una vez, ninguna acción admin vuelve a pedir nada durante esa sesión.
+**Sintaxis validada** (`node --check` sobre una copia del fichero con extensión `.js`, y `bash -n` sobre el script) y **ya aplicado en `custom-root`, verificado por checksum** (`sudo md5sum`/`sudo stat` del usuario: idéntico al fichero del repo, permisos `644 root:root`) — esta sesión no puede leer directamente `custom-root/etc/polkit-1/rules.d/` (750, sin TTY para sudo). Etiquetado como **Alpha 4.8.1**. Pendiente, ya solo de infraestructura: generar la ISO y confirmar con boot-test real que, tras iniciar sesión una vez, ninguna acción admin vuelve a pedir nada durante esa sesión.
