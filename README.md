@@ -4,7 +4,7 @@ Distribución Linux personalizada para clientes de Solwed, construida remasteriz
 
 ## Estado actual
 
-**Solwed OS Beta 1.0.1 — fase Alpha cerrada (los 4 Niveles del plan original a alcance completo, confirmados en hardware real y VM), ahora en corrección de bugs post-Alpha.**
+**Solwed OS Beta 1.0.3 — fase Alpha cerrada (los 4 Niveles del plan original a alcance completo, confirmados en hardware real y VM), ahora en corrección de bugs post-Alpha.**
 
 - **Nivel 1 (identidad visual):** identidad del sistema (`/etc/os-release`, `/etc/lsb-release`), fondo de pantalla y bloqueo de marca Solwed, icono/cursor/color de acento personalizados (`Fluent-round-yellow`). El logo grande de Ajustes → Sistema → Acerca de (ruta escrita a fuego en `gnome-control-center`, no cubierta por el mecanismo genérico de iconos) también corregido — antes seguía mostrando "ANDUINOS".
 - **Nivel 2 (arranque y login):** Plymouth con marca Solwed, fondo y CSS de GDM en amarillo Solwed, **tema gráfico de GRUB propio**, usuario/hostname live, iconos de ArcMenu/apariencia rebrandeados, teclado español, tema de GNOME Shell y GTK en amarillo de acento.
@@ -13,8 +13,10 @@ Distribución Linux personalizada para clientes de Solwed, construida remasteriz
 - **Post-Alpha — admin sin confirmación repetida:** regla de polkit (`polkit/00-solwed-admin-no-prompt.rules`) para que, tras el login, ninguna acción que pida permisos de administrador vuelva a preguntar — decisión de negocio explícita, con el trade-off de seguridad aceptado.
 - **Post-Alpha — bug real de symlinks en el guardián de marca, corregido:** varios iconos del tema (incl. el de Software/FacturaScripts) son symlinks a otro fichero real; el repo los trackeaba con el nombre del symlink en vez del real, lo que hacía que el guardián los revirtiera solo. Renombrados a su nombre real y `level2-06-branding-guard.sh` corregido para no acumular huérfanos entre ejecuciones.
 - **Post-Alpha — widget del tiempo:** ya no se salta su autoconfiguración de primer arranque (detecta la ciudad real del cliente por IP).
+- **Post-Alpha, ya cerrados:** confirmación repetida de admin (polkit) verificada con boot-test, bug de doble instalación con mismo ID de rescate, y logo "ANDUINOS" en Ajustes → Acerca de.
+- **Nuevo — prototipo de chat de IA ("Asistente Solwed"):** acceso directo preinstalable que abre un chat basado en un modelo Liquid AI (LFM) corriendo en un servidor propio (Open WebUI + Ollama), confirmado funcionando en boot-test real. Aún apunta a un servidor de pruebas (Tailscale), pendiente de dominio público y de conexión a datos por cliente antes de producción — ver `ai-chat-shortcut/` y `CHANGELOG.md`.
 - **Investigación aparcada, pendiente de decisión de negocio:** RDP multiusuario simultáneo con una cuenta por técnico en vez de la compartida `soporte-solwed`.
-- **Bug conocido, sin cerrar:** el círculo animado de "cargando" junto al puntero se ve en azul en Proxmox mientras que en hardware real (Dell) no da problema — investigación en curso, ver `CHANGELOG.md`.
+- **Bug conocido, aparcado (no prioritario):** el círculo animado de "cargando" junto al puntero se ve en azul en Proxmox mientras que en hardware real (Dell) no da problema — configuración descartada como causa, investigación en pausa, ver `CHANGELOG.md`.
 - **Resiliencia frente a actualizaciones:** ninguna de las personalizaciones de este proyecto está protegida como conffile por los paquetes de AnduinOS/Ubuntu que las poseen — se sobreescriben en silencio en cualquier actualización relevante. Dos guardianes idempotentes, disparados por hooks de APT, reafirman automáticamente Plymouth/GDM y el resto de la marca (iconos, cursores, ArcMenu, dconf/GTK, GRUB, `os-release`/`lsb-release`, el logo del Acerca de) si algún paquete los revierte.
 
 Ver [`CHANGELOG.md`](CHANGELOG.md) para el detalle de cada cambio y los bugs encontrados/resueltos durante el proceso, y [`solwed-os-manual.html`](solwed-os-manual.html) para la guía completa por niveles con estado, causa raíz y fix de cada bug conocido de la plataforma.
@@ -38,6 +40,7 @@ Ver [`CHANGELOG.md`](CHANGELOG.md) para el detalle de cada cambio y los bugs enc
 - `apt-repo/` — clave GPG pública del repositorio APT propio (preinstalada) y plantilla de `sources.list` (sin activar hasta tener servidor).
 - `rescue-password/` — contraseña de rescate por máquina para `soporte-solwed`: script de primer arranque (genera ID de recuperación + contraseña, los registra en el servidor), script del banner de login, y `server/` (FastAPI + SQLite + Docker, desplegado en `erpsolwed` como `remoto.erpsolwed.es`).
 - `polkit/` — regla de polkit para que el administrador no vuelva a confirmar acciones tras el login (`00-solwed-admin-no-prompt.rules`).
+- `ai-chat-shortcut/` — acceso directo preinstalable ("Asistente Solwed") a un chat de IA (Liquid AI/LFM) corriendo en servidor propio, con icono de marca propio.
 - `scripts/` — scripts de aplicación de marca, pensados para copiarse y ejecutarse dentro del chroot de Cubic.
 - `Capturas Errores/` — capturas de pantalla y salidas de terminal recogidas durante la depuración.
 - `reference/` — ISO limpia de AnduinOS extraída, usada como referencia para verificar comportamiento de fábrica (gitignored, se regenera localmente).

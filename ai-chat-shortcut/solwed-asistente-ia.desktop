@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Asistente Solwed
+Name[es]=Asistente Solwed
+Comment=Chat de IA para clientes de Solwed
+Comment[es]=Chat de IA para clientes de Solwed
+Exec=brave-browser --app=http://100.70.74.87:3000
+Icon=/usr/share/pixmaps/solwed-asistente-ia.png
+Terminal=false
+Categories=Network;Chat;
