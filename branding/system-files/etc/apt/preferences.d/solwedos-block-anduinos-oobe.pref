@@ -1,0 +1,15 @@
+# Solwed OS — bloquea el asistente "Out-Of-Box-Experience" de AnduinOS.
+# Paquete nuevo (no existía en la ISO de referencia AnduinOS 2.0.0 ni en
+# ningún build nuestro), llegado vía actualización normal desde el repo
+# resolute-addon de packages.anduinos.com. Muestra un asistente de varios
+# pasos sin marca Solwed y sin auditar — bloqueado en vez de rebrandeado
+# porque no aporta nada que Solwed OS no cubra ya con su propio asistente
+# de bienvenida (ver welcome-wizard/).
+#
+# El repo de AnduinOS se deja activo a propósito (ver CHANGELOG) — de ahí
+# viene la mayoría de las extensiones de GNOME Shell (ArcMenu, dash-to-panel,
+# tema, etc.), que necesitan poder seguir actualizándose para no romperse
+# si Ubuntu actualiza gnome-shell. Solo se bloquea este paquete concreto.
+Package: anduinos-oobe
+Pin: release *
+Pin-Priority: -1
