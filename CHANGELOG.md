@@ -1,867 +1,212 @@
 # Changelog — Solwed OS
 
-Registro de qué se aplicó en el chroot de Cubic en cada sesión, y por qué. Vive fuera de la ISO, en este repo.
+Registro de cambios de Solwed OS, versión a versión: qué cambió, qué bugs se encontraron y cómo se corrigieron.
 
-## [Sin publicar]
+## [1.0.0] — 2026-07-29
 
-### Infraestructura del proyecto Cubic
-- Proyecto movido de `/mnt/c/Users/Alex Ruiz/Documents/...` (disco Windows, 9p) a `/home/aruizb/cubic-projects/SolwedOS` (ext4 nativo) — el `Extract` fallaba silenciosamente sobre 9p (`is_success_extract = False`), dejando `casper/` sin `filesystem.squashfs` y causando el kernel panic. Confirmado `is_success_extract = True` en el proyecto nuevo.
-- Desactivada la opción **"OS Release"** de Cubic (`update_os_release = False`) para que no sobreescriba `PRETTY_NAME`/`DISTRIB_DESCRIPTION` cada vez que se pasa por la Terminal.
+Primera versión sin sufijo "Beta".
 
-### Nivel 1 — Identidad visual
-- [x] Identidad del sistema (`/etc/os-release`, `/etc/lsb-release`) — URLs de soporte apuntando a `solwed.es/contacto`. Kernel `vmlinuz-7.0.0-27-generic`/`initrd.img-7.0.0-27-generic`, compresión squashfs `zstd`.
-- [x] Fondo de pantalla y bloqueo — `solwed-claro.png`/`solwed-oscuro.png` en `/usr/share/backgrounds/solwed/`, registrados en `gnome-background-properties/solwed.xml` y `dconf/db/anduinos.d/21-solwed-wallpaper.conf`.
-- [x] Iconos, cursores y acento de color — tema `Fluent-round-yellow` reescrito a `#F5E70A` (oscuro) / `#F2D040` (claro, ajustado para contraste), `accent-color='yellow'` en `dconf/db/anduinos.d/22-solwed-accent.conf`.
+### Added
+- `/etc/issue` y `/etc/issue.net` (banner de login por TTY/SSH) llevan la identidad de Solwed OS — antes seguían mostrando la marca de la distribución base.
+- El instalador de FacturaScripts, tras una instalación con éxito, se elimina del menú y del escritorio y se sustituye por un acceso directo real a la aplicación (abre la URL ya instalada en el navegador).
 
-Nivel 1 completo. Pendiente: generar la ISO y probar en VM (identidad + fondo + acento juntos, primera vez sobre el proyecto en `/home/aruizb/cubic-projects/SolwedOS`).
+### Changed
+- El selector de fondos de pantalla del panel de Ajustes ya no incluye una entrada de la distribución base.
+- Las 26 traducciones del nombre de la aplicación "Apariencia" quedan con la marca correcta (antes solo estaba traducido el español y el valor por defecto).
+- El widget del tiempo de la barra de tareas viene desactivado por defecto (antes activado); si se activa a mano, arranca directo con una ubicación precargada, sin ventanas de configuración.
 
-### Bug estructural AnduinOS + Cubic (arranque UEFI) — 2026-07-07
-Tras arreglar el `is_success_extract`, la ISO seguía dando el mismo kernel panic (`file '/casper/initrd' not found` → `VFS: Unable to mount root fs`). Causa real, nada que ver con nuestros cambios: la partición EFI (`partition-2.img`, FAT16, ~10MB) trae un `EFI/BOOT/grub.cfg` que busca el disco por **UUID fijo** derivado de la fecha de creación del ISO9660 original (`search.fs_uuid efdc52a6-9723-436f-8473-6aee910fb771`), y si lo encuentra, apunta a una ruta absoluta **del ordenador de build de AnduinOS** (`/home/anduin/Desktop/AnduinOS-2/image/isolinux/boot/grub`). Cualquier ISO regenerada (con Cubic o cualquier otra herramienta) tiene una fecha de creación distinta → UUID distinto → la búsqueda falla → GRUB no encuentra su menú real y cae en un fallback roto. Esto afecta a **cualquier** rebuild de AnduinOS, con o sin personalización.
+### Fixed
+- El guardián de actualización de marca no disparaba la regeneración del menú de arranque (GRUB) al restaurar la identidad del sistema — un sistema con actualizaciones pendientes podía mostrar temporalmente la marca de la distribución base en el menú de arranque pese a que el resto del sistema ya estuviera bien.
+- El script de despliegue del guardián de marca podía dejar de refrescar su copia de referencia de forma silenciosa si el directorio de staging no se limpiaba primero — quedaba protegiendo una versión desactualizada del sistema sin que nada lo indicara.
+- El fondo de escritorio/login/bloqueo llevaba el logotipo superpuesto al panel de usuario, ilegible. Corregido quitando el icono del logotipo (se mantiene el nombre en texto).
 
-Arreglado editando ese `grub.cfg` embebido (con `mtools`/`mcopy`, ya que 7z no escribe en imágenes FAT) para que use el mismo mecanismo robusto que ya usa el resto de la ISO — buscar por el archivo marcador `/anduinos` en vez de por UUID:
-```
-search --set=root --file /anduinos
-set prefix=($root)/isolinux/boot/grub
-configfile $prefix/grub.cfg
-```
-Aplicado directamente en `partition-2.img` del proyecto — **corrección**: ese no es el archivo que se empaqueta en el ISO final. El que de verdad importa es `custom-disk/EFI/efiboot.img`; ahí se aplicó el fix definitivo y sobrevivió al Generate.
+## [Beta 1.3.0] — 2026-07-24
 
-### Arranque correcto confirmado — 2026-07-07
-Primer arranque sin errores. Tras activar EFI en la VM (antes estaba en BIOS) y aplicar el fix del `efiboot.img`, la ISO llegó a GRUB y al kernel sin fallos — la pantalla en negro posterior no era un bug nuestro, sino falta de **Aceleración 3D** en la VM de VirtualBox (GNOME/Wayland moderno la necesita). Solucionado subiendo memoria de vídeo a 128MB y activando "Aceleración 3D" en Configuración → Pantalla. Nivel 1 (identidad, fondo, acento) validado en un arranque real.
+### Added
+- Bloqueado, mediante un pin de gestor de paquetes, un asistente de configuración de primer arranque de la distribución base que empezó a llegar por una actualización normal — no aportaba nada que el asistente de bienvenida propio no cubriera ya, y no llevaba la identidad de Solwed OS.
 
-### Bug: fondo negro y sin iconos tras instalar (solo en sistema instalado, no en live) — 2026-07-07
-Probado en hardware real (Dell Latitude 5490, no VM): el modo live arranca perfecto (fondo, iconos, acento todo bien), pero tras instalar con Ubiquity, GDM entra en una sesión con fondo negro y sin ningún icono (barra/dash/escritorio) — las ventanas de aplicaciones normales (Firefox) sí se ven y funcionan.
+### Fixed
+- **Causa real del error del widget del tiempo, encontrada tras un primer intento incompleto:** el proveedor de geolocalización automática por IP usado por la extensión quedaba bloqueado por una protección anti-bot, de forma estructural (le pasa a cualquier instalación, no a un entorno concreto) — los otros dos proveedores alternativos también estaban rotos (límite de peticiones agotado / servicio dado de baja aguas arriba). Solución: se precarga una ubicación fija por defecto, sin depender de ningún servicio externo de geolocalización; el cliente puede cambiarla a mano si lo desea.
+- El widget del tiempo vuelve a activarse por defecto (se había desactivado temporalmente como solución provisional al bug anterior) — con la ubicación ya precargada, se activa solo sin mostrar ninguna ventana de configuración.
 
-**Causa raíz:** `journalctl` mostraba spam de `gnome-shell: Failed to load resource:///org/gnome/shell/theme/background.png: Loader process exited early with status '0'`. Rastreado hasta `/usr/bin/bwrap` (bubblewrap, usado por gdk-pixbuf/glycin para decodificar imágenes en sandbox) — es un wrapper (`#!/bin/sh\n/usr/bin/bwrap.real "$@" 2>/dev/null || true`) que llama al binario real `bwrap.real` y **enmascara cualquier fallo devolviendo siempre 0**. El fallo real, visible en `sudo journalctl -b -k | grep apparmor`: el perfil de AppArmor `bwrap-userns-restrict` (concretamente su sub-perfil `unpriv_bwrap`, que por diseño hace `audit deny capability` para evitar escaladas de privilegio dentro del namespace) estaba denegando `CAP_SYS_ADMIN` a `bwrap.real`, rompiendo cualquier decodificación de imagen que pasara por ahí (fondo, iconos del shell) mientras apps con su propio decodificador (Firefox) seguían intactas.
+## [Beta 1.0.3] — 2026-07-22
 
-Confirmado con la ISO de referencia limpia (`reference/anduinos-clean-iso/`) que el wrapper y el perfil AppArmor son **estrictamete de fábrica de AnduinOS/Ubuntu** (idénticos byte a byte a nuestro `custom-root`) — no es una regresión de nuestra personalización. Es un caso límite conocido de la función de Ubuntu de restricción de user namespaces sin privilegios, que el propio comentario del perfil admite como imperfecto ("bwrap will still have to be fairly loose until a transition at namespacing in general is available").
+### Added
+- Prototipo de acceso directo a un asistente de chat con inteligencia artificial, conectado a un servidor propio.
 
-Por qué solo falla instalado y no en live: pendiente de entender del todo (probablemente diferencias de carga/caché de AppArmor entre el overlay de casper y el disco real), pero no bloquea el fix.
+### Fixed
+- El logotipo de marca (icono "W.") llevaba desde una versión anterior con un color mal aplicado en dos de sus cuatro trazos — el fichero corregido nunca había llegado al control de versiones, solo se había aplicado a mano en un build concreto.
+- Corregido un bug real en el guardián de actualización de marca: varios iconos del sistema son en realidad enlaces simbólicos a otro fichero real, y el guardián los tenía registrados por el nombre del enlace en vez del nombre real — la copia de restauración escribía en el fichero equivocado y el icono se revertía solo en cada ejecución.
+- Corregido un segundo bug en el propio mecanismo de instalación del guardián: al copiar sobre un directorio ya existente en vez de sustituirlo, los ficheros ya eliminados del proyecto seguían acumulados en el destino y volvían a aplicarse.
+- El campo "ID de recuperación" del sistema de contraseña de rescate ya no depende de la identidad interna de la herramienta de soporte remoto — se genera de forma propia e independiente, evitando un caso real de colisión entre dos instalaciones distintas del mismo cliente.
 
-**Fix aplicado (probado en caliente primero con `sudo apparmor_parser -R .../bwrap-userns-restrict`, confirmado que soluciona fondo+iconos):** en vez de editar el perfil de Ubuntu, se añadió un symlink en el mecanismo estándar de AppArmor para que el perfil arranque en modo *complain* (audita pero no bloquea) — igual que ya hace AnduinOS con `usr.sbin.sssd`:
-```
-ln -s /etc/apparmor.d/bwrap-userns-restrict /etc/apparmor.d/force-complain/bwrap-userns-restrict
-```
-Aplicado en `custom-root/etc/apparmor.d/force-complain/`. Reversible sin tocar el perfil original; sobrevive a actualizaciones del paquete `apparmor`.
+## [Beta 1.0.1] — 2026-07-21
 
-**Confirmado end-to-end — 2026-07-07:** ISO regenerada en Cubic con el symlink ya horneado en `custom-root`, instalada de cero en el Dell Latitude 5490 (no en caliente sobre una instalación previa). Fondo, iconos y acento correctos desde el primer arranque tras instalar. Bug cerrado.
+### Added
+- Regla de permisos para que, tras iniciar sesión como administrador, ninguna acción que requiera permisos elevados vuelva a pedir confirmación durante esa sesión (decisión de negocio, con el compromiso de seguridad correspondiente aceptado).
+- Interfaz web de consulta para el equipo de soporte: formulario protegido por autenticación para consultar la contraseña de rescate de un equipo a partir de su ID de recuperación, sin necesidad de herramientas de línea de comandos.
+- El identificador de recuperación se muestra en la propia pantalla de inicio de sesión (vista de "usuario no listado"), legible sin necesidad de iniciar sesión — pensado para el caso de un cliente bloqueado fuera de su cuenta.
+- Sistema de contraseña de rescate por equipo: cada instalación genera su propia contraseña local en el primer arranque real y la registra en un servidor propio, sustituyendo a una contraseña compartida entre todo el parque de equipos.
 
-## Nivel 2 — Arranque y login (en progreso, 2026-07-08)
+### Fixed
+- El logotipo grande del panel "Acerca de" en Ajustes → Sistema seguía mostrando la marca de la distribución base — ese panel no usa el mecanismo estándar de identidad del sistema, tiene la ruta del logotipo fija en el propio binario de Ajustes.
+- Cerrado un fallo de seguridad real: la documentación autogenerada de la API del servidor de soporte quedaba accesible públicamente sin autenticación, exponiendo la estructura interna de la API. Desactivada por completo.
+- La consulta de contraseñas de rescate pasó de una petición de tipo GET a una de tipo POST, para que el identificador no quede expuesto en el historial del navegador ni en los registros de acceso del servidor.
 
-Investigación de los 4 puntos del manual antes de tocar nada:
+### Changed
+- Versión renombrada de fase Alpha a Beta.
 
-- **GRUB: sin trabajo pendiente.** `GRUB_DISTRIBUTOR` ya resuelve a `NAME="Solwed OS"` (viene de `/etc/os-release`, Nivel 1), y `GRUB_TIMEOUT=0` + `GRUB_TIMEOUT_STYLE=hidden` significa que el menú nunca se renderiza — no hay texto visible que rebrandear. Se descarta tocar el fondo de GRUB por ahora: vive en el mismo `EFI/efiboot.img` que causó el bug estructural de arranque UEFI, y no aporta valor visible con el menú oculto.
-- **Plymouth (splash de arranque):** usa el módulo `two-step` (no un `.script` custom), lo cual reduce el riesgo de una pantalla negra silenciosa por script mal escrito. El watermark (`watermark.png`, 300×61, alineado abajo-centro) y el fallback de firmware (`bgrt-fallback.png`, 96×96) son los dos assets a sustituir. Generados a partir de `imagenes_Solwed/LogoSolwed.svg` — el SVG es en realidad un cuadrado negro con la marca "W." recortada en negativo (fill-rule nonzero), así que se extrajo la marca sola invirtiendo el canal alfa para tener un glifo blanco sobre transparente, apto para el fondo negro de Plymouth. Assets finales en `branding/plymouth/`. Script preparado: `scripts/level2-01-plymouth.sh` (fork del tema `anduinos` → `solwedos`, registro vía `update-alternatives`, `update-initramfs -u`). **Pendiente de ejecutar y boot-test en aislamiento** (sin mezclar con el cambio de GDM, es el único de los 4 puntos que puede causar un kernel panic si algo va mal).
-- **GDM3 (fondo de login):** encontrado el mecanismo nativo de AnduinOS — el paquete `anduinos-gdm3-wallpaper` trae `/usr/bin/anduinos-gdm-set-wallpaper`, que genera un `gdm-theme.gresource` a partir de cualquier imagen y lo registra vía `update-alternatives` sobre `/usr/share/gnome-shell/gdm-theme.gresource`. No hace falta tocar dconf ni gresources a mano. Reutiliza `solwed-oscuro.png` (ya baqueado en Nivel 1). Script preparado: `scripts/level2-02-gdm-login.sh`. No toca initramfs/kernel — no puede causar panic, solo un login feo en el peor caso. **Pendiente de ejecutar**, después de validar Plymouth por separado.
-- **MOTD:** descartado por ahora — solo se ve por TTY/SSH, ningún cliente en escritorio gráfico lo verá. Baja prioridad.
+## [Alpha 4.8.0] — 2026-07-17
 
-**Plymouth confirmado — 2026-07-08:** `level2-01-plymouth.sh` ejecutado y probado en el Dell Latitude 5490. Arranca perfecto con el tema `solwedos`.
+### Added
+- Cuenta local de rescate para clientes bloqueados fuera de su cuenta, sin contraseña compartida entre equipos.
 
-**GDM confirmado, con 3 pegas — 2026-07-08:** `level2-02-gdm-login.sh` ejecutado (sin `--darken`, ver más abajo). Funciona, pero:
+### Fixed
+- Corregidos tres fallos reales en la puesta en marcha del sistema de rescate: un fallo de tubería en la generación de la contraseña aleatoria, un registro que capturaba la identidad incorrecta (la del proceso del sistema en vez de la del cliente), y una confusión de entorno de despliegue entre dos terminales distintas del proceso de construcción.
 
-1. **El panel de login (usuario/contraseña) se superpone al logo "SOLWED.es".** Causa: `solwed-oscuro.png`/`solwed-claro.png` (en `imagenes_Solwed`/`custom-root/usr/share/backgrounds/solwed/`) llevan el logo centrado en el lienzo — justo donde GDM centra su panel. Arreglado: logo reposicionado al 90% de la altura (abajo, centrado horizontalmente) en ambas imágenes, clonando y difuminando el fondo sobre la posición antigua para no dejar costura visible. Nuevas versiones en `branding/wallpapers/solwed-{oscuro,claro}.png`. Como estas mismas imágenes se usan para fondo de escritorio (Nivel 1) y fondo de bloqueo, el reposicionado corrige los tres sitios a la vez — pendiente de copiar al chroot y volver a correr `level2-02-gdm-login.sh` para regenerar el gresource con la posición nueva.
-2. **El menú de arranque live dice "Try or Install AnduinOS".** Es texto plano en `custom-disk/boot/grub/grub.cfg` e `custom-disk/isolinux/grub.cfg` (fuera del chroot, son los archivos reales que carga el `grub.cfg` embebido vía el fix del bug estructural EFI — no una plantilla intermedia). Corregido directamente ahí mismo (soy dueño del archivo, sin sudo) a "Try or Install Solwed OS" / "Try or Install Solwed OS (Safe Graphics)" / "Solwed OS To Go (Persistent on USB)". **Pendiente de verificar tras el próximo Generate** — por precaución, igual que con el `efiboot.img`, comprobar que Cubic no lo regenera desde otra plantilla.
-3. **Con tema claro, el fondo de bloqueo (Súper+L) apenas tiene contraste** — `solwed-claro.png` era casi blanco puro y el panel de desbloqueo se leía mal encima. **Confirmado en caliente en el Dell (2026-07-08):** forzar `org/gnome/desktop/screensaver picture-uri` al wallpaper oscuro no cambia nada al bloquear con tema claro — este gnome-shell (Ubuntu/AnduinOS resolute) ignora esa clave y reutiliza directamente `org/gnome/desktop/background` (picture-uri/picture-uri-dark, según el tema activo). Revisados los esquemas glib disponibles: no existe ninguna clave independiente para el fondo de bloqueo — usa la misma imagen que el escritorio, sin excepción.
+## [Alpha 4.7.0] — 2026-07-16
 
-   Sin una clave de config que lo resuelva, la única vía es la propia imagen. Decisión: oscurecer `solwed-claro.png` de forma global y moderada (factor ×0.80 sobre RGB, de ~248 a ~198 de media) en vez de limitarlo a la franja donde cae el panel — sigue leyéndose como tema claro pero da margen suficiente al desenfoque/oscurecido que ya aplica GNOME por defecto en el bloqueo. Aplicado en `branding/wallpapers/solwed-claro.png` (ya incluye también el reposicionado del logo del punto 1).
+### Changed
+- Reescrito el contenido y las capturas de pantalla del instalador gráfico: tres diapositivas genéricas de la distribución base sustituidas por contenido relevante (catálogo de aplicaciones, soporte remoto, actualizaciones), traducido a los 27 idiomas soportados. Eliminado cualquier resto visual o textual de la marca de la distribución base en el instalador.
 
-## Alpha 2.2.0 — confirmada en el Dell (2026-07-08)
+## [Alpha 4.6.0] — 2026-07-16
 
-Nivel 2 funcionando de punta a punta: Plymouth, GDM, menú de arranque y las 3 pegas de arriba, todo probado en hardware real.
+### Added
+- Asistente de bienvenida de primer inicio de sesión: aviso único con la lista de aplicaciones preinstaladas y los canales de soporte disponibles.
 
-## Alpha 2.3.0 — pulido visual del splash y reposicionado del logo (en progreso, 2026-07-08)
+## [Alpha 4.5.1] — 2026-07-16
 
-Dos pegas de acabado sobre la 2.2.0:
+### Fixed
+- El usuario elegido durante la instalación real no llegaba a crearse (solo quedaba disponible la cuenta de rescate) — mismo tipo de fallo que en la versión anterior, esta vez en la copia del instalador gráfico, que llevaba su propia lógica duplicada sin el mismo ajuste aplicado.
+- El icono de la Tienda de software / instalador de FacturaScripts seguía mostrando el color por defecto (azul) en vez del color de marca.
 
-1. **Watermark de Plymouth: de icono suelto a wordmark.** Antes solo mostraba la marca "W." (el icono de `LogoSolwed.svg`). Ahora dice "Solwed OS" + el icono, imitando el lockup de `solwed.es`. El texto se renderiza con la fuente **Ubuntu Bold** (variable font ya instalada en el host, coincide con la base Ubuntu de AnduinOS; Cantarell —la que declara el tema Plymouth— no está instalada como paquete en el chroot, así que no había garantía de que se viera en el arranque real).
+## [Alpha 4.4.0] — 2026-07-15
 
-   El icono "W." también lleva ahora el acento amarillo de Solwed en la 1ª y 3ª de sus 4 líneas diagonales, igual que la V amarilla del wordmark `solwed.es`. Como el SVG fuente es un único `<path>` (cuadrado negro con la marca recortada en negativo vía fill-rule), no hay una forma directa de aislar "la línea 1" o "la línea 3" — se resolvió calculando, fila a fila, los 4 tramos horizontales que forman el trazo en zigzag (contando "runs" de píxeles activos por fila) y recoloreando por posición dentro de esos 4 tramos, no por sub-trazo del SVG. Aplicado también en `bgrt-fallback.png` (mismo icono, sin texto, por consistencia). Nuevos assets en `branding/plymouth/`, script de aplicación: `scripts/level2-03-plymouth-v2.sh` (solo sustituye los dos PNG dentro del tema `solwedos` ya forkeado y regenera initramfs, no vuelve a registrar la alternativa).
+### Fixed
+- El arranque en modo live y la instalación real dejaban de crear automáticamente la cuenta de usuario normal en cuanto existía otra cuenta de sistema con un identificador dentro de cierto rango — causado por añadir la cuenta local de rescate. Corregido con el ajuste de compatibilidad que el propio mecanismo de creación de usuarios ya contempla para este caso.
 
-2. **El logo se solapaba con la barra de tareas del escritorio.** El reposicionado de la 2.2.0 (90% de la altura) evitaba el panel de GDM pero quedaba demasiado bajo para el escritorio real, donde la barra de tareas (dash-to-panel, abajo) tapaba el texto. Subido al **80% de la altura** en ambos wallpapers — compromiso entre no chocar con el panel de login (centro) y no chocar con la barra de tareas (borde inferior). Reaplicado también el oscurecido de contraste (×0.80) sobre la versión clara tras el reposicionado. Assets actualizados en `branding/wallpapers/`.
+## [Alpha 4.3.1] — 2026-07-15
 
-**Confirmada en el Dell — 2026-07-08.** Wordmark "Solwed OS" + W. con acento amarillo en el splash, y logo del wallpaper ya sin chocar con la barra de tareas ni con el panel de login. Nivel 2 cerrado.
+### Fixed
+- La preconfiguración del cliente de soporte remoto no llegaba a aplicarse de fábrica: la plantilla se depositaba con una capitalización de ruta distinta a la que el programa realmente lee en este sistema. Con el nombre de ruta correcto, la conexión al servidor propio queda preconfigurada sin ninguna intervención manual.
 
-**Observación sin resolver — cursor de carga (circulito animado junto al puntero):** en Proxmox se ve del amarillo-naranja de acento de Solwed; en el Dell se mantiene azul (color por defecto). El tema de cursores `Fluent-cursors` es único y neutro — no hay variantes de color por accent-color como sí las hay para los iconos (`Fluent-yellow`, `Fluent-orange`, etc.), así que ese circulito no es un cursor XCursor estático sino que lo pinta GNOME Shell/Mutter en tiempo real leyendo `accent-color`.
+### Added
+- Servidor de repositorio de paquetes propio, con clave de firma dedicada y publicación mediante herramienta de gestión de repositorios.
+- Servidor propio de soporte remoto desplegado (registro y retransmisión de conexiones).
 
-Hipótesis de sesión Xorg/XWayland **descartada**: `echo $XDG_SESSION_TYPE` da `wayland` en ambos (Dell y Proxmox), 2026-07-08. Nueva hipótesis, sin confirmar: Mutter puede delegar el cursor a un plano de hardware (KMS cursor plane) en GPUs reales (Intel UHD 620 del Latitude) por rendimiento, mientras que en la VM de Proxmox (virtio-gpu/QXL) no hay ese plano y compone el cursor por software — si el indicador de carga se genera como parte de esa imagen compuesta, la ruta por hardware podría no llevar el recoloreado por acento. Sin confirmar sin logs en vivo del Dell (`journalctl -b | grep -i cursor` mientras se abre una app, misma metodología que el bug #4). **Aparcado por baja prioridad/cosmético** — el acento en sí ya funciona correctamente en fondo e iconos.
+## [Alpha 4.2.0] — 2026-07-14
 
-## Alpha 2.4.0 — usuario live, hostname y logo del panel de login (en progreso, 2026-07-08)
+### Added
+- Segundo guardián de actualización de marca, más amplio: reafirma iconos, cursores, menú de inicio, tema del sistema, identidad (`os-release`/`lsb-release`) y GRUB si una actualización de paquete los revierte.
 
-Dos pegas más detectadas tras confirmar la 2.3.0:
+### Fixed
+- Los botones de la pantalla de inicio de sesión (Wifi, accesibilidad, teclado) se mostraban en azul en vez del color de acento — causado por una hoja de estilos estática de la distribución base que se reescribe por completo al generar el fondo de esa pantalla. Recoloreada la hoja de estilos y documentado como limitación conocida el interruptor de modo claro/oscuro de esa misma pantalla (no depende de nada personalizable en este sistema).
+- El splash de arranque y el fondo de la pantalla de inicio de sesión volvían a mostrar la marca de la distribución base tras una actualización desde la tienda de aplicaciones — los paquetes correspondientes reafirman su propia configuración en cada actualización, de forma incondicional. Añadido el primer guardián de actualización (disparado tras cualquier operación de gestión de paquetes) que revierte esto automáticamente.
 
-1. **Usuario de la sesión live y hostname seguían con marca AnduinOS.** `/etc/casper.conf` tenía `USERNAME="live"` con `USERFULLNAME="AnduinOS Live session user"` y `HOST="anduinos"`/`FLAVOUR="AnduinOS"`. Comprobado en `/usr/share/initramfs-tools/scripts/casper` que el mecanismo de fallback que deriva usuario/host de `.disk/info` solo se activa si `FLAVOUR` está vacío — como aquí siempre está seteado, nuestros valores explícitos si se respetan, así que basta con editarlos directamente. De paso se encontró que el hostname del **sistema instalado** (`/etc/hostname`) también seguía en `anduinos`, un descuido separado del live. Corregido: `USERNAME="solwed"`, `USERFULLNAME="Solwed OS Live session user"`, `HOST="solwedos"`, `FLAVOUR="SolwedOS"`, y `/etc/hostname` → `solwedos`. Son ficheros de texto plano — no hace falta el terminal chroot de Cubic, un `sudo` normal desde el host basta.
+## [Alpha 4.1.1] — 2026-07-14
 
-2. **El logo "Anduin + ANDUINOS" abajo del panel de login/bloqueo.** No tenía nada que ver con nuestro wallpaper (que ya se ve bien, con "SOLWED.es" arriba) — es un elemento CSS separado (`.login-dialog-logo-bin`) que gnome-shell dibuja usando la clave `org/gnome/login-screen logo`. Encontrada en `/etc/gdm3/greeter.dconf-defaults` (fichero ini simple de Debian/Ubuntu para defaults del greeter, no pasa por el mecanismo de perfiles dconf — no existe `/etc/dconf/profile/gdm` en este sistema):
-   ```
-   [org/gnome/login-screen]
-   logo='/usr/share/pixmaps/anduinos_text_smaller.png'
-   ```
-   `anduinos_text_smaller.png` es 300×61, el mismo tamaño que el watermark original de Plymouth (mismo asset reutilizado en dos sitios). Sustituido por el wordmark "Solwed OS" + W. con acento amarillo de la 2.3.0 (`branding/gdm/solwedos-login-logo.png`), y la clave `logo=` actualizada para apuntar ahí. Mismo mecanismo de texto plano, sin chroot necesario.
+### Added
+- Tema gráfico propio para el menú de arranque (GRUB), con tiempo de espera visible de 5 segundos.
+- Selección de idioma español por defecto en el menú del medio de instalación.
 
-**Confirmado — el logo del panel de login/bloqueo ya sale bien (2026-07-08). El usuario/hostname del live seguía en AnduinOS pese a haber editado `casper.conf`** — causa encontrada: `/usr/share/initramfs-tools/hooks/casper` copia `/etc/casper.conf` DENTRO del `initrd.gz` en el momento de compilarlo (`cp /etc/casper.conf ${DESTDIR}/etc`); editar el fichero en `custom-root` no sirve de nada si no se regenera el initramfs después — el initrd de la ISO seguía llevando la copia vieja. Mismo tipo de trampa que ya nos pasó con Plymouth. Fix: `update-initramfs -u -k all` dentro del chroot tras el edit (sin volver a tocar `casper.conf`, ya estaba bien).
+## [Alpha 4.0.0] — 2026-07-13
 
-## Alpha 2.5.0 — apariencia y menú de inicio (en progreso, 2026-07-08)
+### Added
+- Cliente de soporte remoto preinstalado y preconfigurado contra un servidor propio (sin servidor todavía desplegado en esta versión).
 
-Tres pegas más:
+### Fixed
+- Neutralizado que el paquete del cliente de soporte remoto activara por defecto su servicio de acceso desatendido (sin confirmación ni presencia del usuario) — queda desactivado de fábrica, tal y como se requiere.
 
-1. **Live/hostname seguían en anduinos** — ver el bug del initrd de arriba, resuelto con `update-initramfs -u -k all`.
-2. **App "Apariencia de AnduinOS" en el menú de inicio.** Es `anduinos-appearance.desktop` (paquete `anduinos-appearance`, cambia entre layout de barra de tareas estilo 11 y clásico). Cambiado `Name=` y `Name[es_ES]=` a "Solwed OS Appearance"/"Apariencia de SolwedOS" — el `Icon=`, `Exec=` y `StartupWMClass=` internos se dejan intactos (son identificadores del binario, no texto de marca).
-3. **Icono del botón de inicio en la barra de tareas** (el que despliega el menú ArcMenu). En `/etc/dconf/db/anduinos.d/10-arcmenu.conf` las claves `custom-menu-button-icon` y `menu-button-icon` ya apuntan a un fichero configurable: `/usr/share/gnome-shell/extensions/arcmenu@arcmenu.com/icons/anduinos-logo.svg` (96×96). No hace falta tocar dconf — basta con sustituir ese fichero. Construido `branding/panel/anduinos-logo.svg`: un SVG mínimo que envuelve el mismo icono "W." con acento amarillo (el `bgrt-fallback.png` de la 2.3.0) como imagen embebida en base64, para conservar el nombre/formato de archivo que ArcMenu espera sin tener que reconstruir el trazado como vector puro.
+## [Alpha 3.2.1] — 2026-07-10
 
-**Confirmada en el Dell — 2026-07-08.** Live arranca como `solwed@solwedos`, app "Apariencia de SolwedOS" y el botón de inicio con la W. de acento amarillo, todo correcto. Con esto se cierra del todo el rebranding de identidad/arranque/login (Niveles 1-2 y sus pulidos posteriores).
+### Fixed
+- Completado el recoloreo de iconos de aplicaciones que había quedado a medias (terminal, e icono de la Tienda de software con una capa incrustada como imagen que el primer script de recoloreo no alcanzaba).
+- Corregido el logotipo de marca, que llevaba mal aplicado el color en dos de sus cuatro trazos desde su introducción.
 
-## Alpha 2.6.0 — azul de fábrica en el tema de cursores (en progreso, 2026-07-08)
+## [Alpha 3.2.0] — 2026-07-10
 
-Pendiente desde el bug #4/aparcado en la 2.2: el circulito de carga (spinner) y varios cursores más se veían azules en vez de con el acento amarillo. La hipótesis del plano de cursor por hardware (VM vs GPU real) quedó **descartada**: eso solo cambia cómo se compone el cursor, nunca su color — no explica una diferencia de tono.
+### Added
+- Autofirma (firma electrónica), Okular (lector/firmador de PDF).
+- Fondos de escritorio de mayor resolución.
 
-**Causa real, confirmada abriendo los ficheros Xcursor byte a byte:** el tema de cursores `Fluent-cursors`/`Fluent-dark-cursors` es un binario (formato Xcursor, no CSS ni SVG) con el azul de AnduinOS **incrustado directamente como píxeles** en las insignias de ciertos cursores — `progress`/`watch`/`wait` (spinner de carga), los cursores de redimensionar (`size_hor`, `size_ver`, las esquinas, `sb_h_double_arrow`...), `alias`, `link`, `context-menu`, `all-scroll`, etc. El Nivel 1 solo recoloreó el **tema de iconos** (`Fluent-yellow`, escritorio/apps) — el tema de *cursores* es un asset totalmente distinto que nunca se tocó, así que seguía con el azul de fábrica en cualquier build, VM o hardware real (la comparación Proxmox-amarillo/Dell-azul de la 2.2 no era una pista fiable: eran builds distintas, 1.0.0 vs 2.5.0).
+### Changed
+- Navegador por defecto: sustituido por Brave.
+- Cliente de escritorio remoto de terceros evaluado y retirado — no resolvía el caso de uso real (acceso entrante de soporte, no saliente del cliente).
 
-**Fix:** escrito un parser/editor de Xcursor en Python (formato simple: TOC + chunks de imagen ARGB32 crudo) que recorre cada fichero, detecta píxeles con matiz azul (170°-250°) y un rango de color apreciable (para no disparar en el ruido de antialiasing casi-negro de los cursores normales — ese fue el primer intento, con falsos positivos en `default`/`left_ptr`/`text` de unos pocos píxeles cada uno, descartados con un umbral mínimo de 80 píxeles por fichero) y rota el matiz a nuestro amarillo (#F5E70A) conservando saturación/brillo/alpha originales — así se respeta el sombreado y el antialiasing de cada insignia, no es un tinte plano. 56 de los 111 ficheros de cada tema llevaban esta insignia azul; el resto (cursor básico, texto, manita, etc.) no se tocan. Assets en `branding/cursors/{Fluent-cursors,Fluent-dark-cursors}/cursors/`.
+### Fixed
+- Corregida la confianza de certificados de Autofirma en el navegador por defecto (el instalador solo la registraba en almacenes que este navegador no usa).
+- Corregido que LibreOffice se cerrara solo, sin error visible, segundos después de abrirse en el sistema ya instalado — causado por una capa de compatibilidad del sistema que no preservaba correctamente los descriptores de archivo esperados por el decodificador de imágenes en sandbox. Sustituida por una invocación directa.
+- Corregido el acceso directo al navegador en el menú de inicio, que había quedado apuntando a la aplicación anterior tras el cambio de navegador por defecto.
 
-**Confirmada en el Dell — 2026-07-08.** Spinner de carga y cursor de redimensionar en amarillo Solwed, sin efectos secundarios en el resto de cursores. Bug del acento en cursores (aparcado desde el bug #4/2.2.0) cerrado del todo.
+## [Alpha 3.1.1] — 2026-07-09
 
-## Auditoría de Ubiquity (instalador) — 2026-07-08
+### Fixed
+- El instalador gráfico de FacturaScripts no completaba la instalación: elevar todo el proceso a administrador de una vez impedía mostrar cualquier ventana gráfica en este sistema (arquitectura de sesión gráfica sin compatibilidad heredada). Separado en un lanzador sin privilegios (con la interfaz) y un proceso de trabajo con privilegios elevados (sin interfaz), comunicados por una tubería de progreso.
+- Corregido un aviso de módulo de servidor web no cargado que rompía las URLs de FacturaScripts — el servicio arrancaba antes de que se activara el módulo necesario y no se reiniciaba después.
 
-Petición: revisar qué de AnduinOS se cuela en el instalador (Ubiquity). Resultado de la auditoría:
+## [Alpha 3.1.0] — 2026-07-09
 
-**Sin riesgo, no hace falta tocar nada:**
-- `99anduinos-rime-setup` y `anduinos-clean-wrapper` (hooks de `target-config` de Ubiquity): funcionales, no cosméticos (setup de Rime solo si detecta locale chino; limpieza de un binario tras instalar). Sin texto ni imágenes.
-- No hay slideshow de Ubuntu (`ubiquity-slideshow-ubuntu` no está instalado) — pero **sí hay uno propio de AnduinOS**, ver más abajo.
-- Ningún texto "AnduinOS" hardcodeado en el propio Ubiquity (`.ui`/Python) — los títulos como "Install RELEASE" se sustituyen dinámicamente desde `.disk/info`, ya en "Solwed OS".
-- Iconos/mapas del paquete `ubiquity-ubuntu-artwork` (zonas horarias, particionador): artwork genérico de Ubuntu, sin logos ni texto.
-- El icono de la ventana de Ubiquity usa el mecanismo estándar `distributor-logo` (mismo que el badge de GDM) — no hay `distributor-logo-anduinos`, así que se ve el genérico de fábrica del tema Fluent (un engranaje gris). No es AnduinOS, pero tampoco es Solwed — pendiente de decidir si merece la pena rebrandearlo (mismo truco que el icono de ArcMenu).
+### Added
+- Instalador gráfico de FacturaScripts (facturación y contabilidad) bajo demanda, no preinstalado.
+- Carpeta de aplicaciones ofimáticas y acceso directo al cliente de correo en el menú de inicio.
+- Mecanismo permanente para que cualquier acceso directo nuevo en el escritorio se considere de confianza automáticamente, sin advertencia previa.
 
-**Causa raíz de los botones/enlaces en azul dentro de Ubiquity (y potencialmente en cualquier app GTK3) — encontrada:**
-`/usr/share/glib-2.0/schemas/99-anduinos-defaults.gschema.override` fija los defaults de sistema para toda sesión nueva: `gtk-theme='Fluent-round-Dark'` e `icon-theme='Fluent-dark'` — las variantes **neutras**, no las `-yellow`. La variante `Fluent-round-yellow-Dark` ya lleva nuestro `#F5E70A` incrustado (87 veces — sí se recoloreó en el Nivel 1), pero nunca se activó como default real. Lo que sí se ve amarillo en el escritorio (fondo, iconos, spinner) funciona porque las extensiones `accent-gtk-theme@brgvos`/`accent-icons-theme@brgvos`/`accent-user-theme@brgvos` (ya habilitadas en el mismo override) parchean esto en caliente dentro de GNOME Shell — pero Ubiquity corre como proceso aparte (`sudo ubiquity gtk_ui`, ver `anduinos-installer`), fuera de esa magia, y hereda el default estático neutro/azul.
+## [Alpha 3.0.0] — 2026-07-09
 
-**Fix (pendiente de aplicar):** cambiar en el override `gtk-theme='Fluent-round-yellow-Dark'` e `icon-theme='Fluent-yellow-dark'` — más fiable que depender de que la extensión llegue a tiempo, mismo criterio que ya seguimos con los cursores. Requiere recompilar el caché de esquemas (`glib-compile-schemas /usr/share/glib-2.0/schemas/` dentro del chroot) para que surta efecto — mismo tipo de trampa que initramfs/casper.conf, si no se recompila el cambio no se nota.
+### Added
+- Suite ofimática completa preinstalada.
+- Cliente de correo, con complemento de mensajería web integrado.
 
-**El slideshow propio de AnduinOS (paquete `anduinos-installer-config`, por eso no salió en la primera búsqueda por nombre de paquete) — pendiente, aplazado a la sesión de mañana:**
-`usr/share/ubiquity-slideshow/slides/l10n/es/` tiene 7 diapositivas (bienvenida, apps, desarrollo, gaming, privacidad, open-source, soporte) con texto real sobre AnduinOS y enlaces a `anduinos.com`, `docs.anduinos.com`, `github.com/Anduin2017/AnduinOS`. Las capturas de pantalla (`screenshots/*.png`) llevan la marca horneada como píxeles — `sc.png` es literalmente un pantallazo del repositorio de GitHub de AnduinOS con su logo y nombre visibles. `welcome.png`/usada de fondo en 2 diapositivas es un fondo abstracto azul genérico (sin texto, pero muy "de marca AnduinOS" en tono).
+### Fixed
+- Corregido que la gestión de repositorios de terceros (PPA) dejara de funcionar tras el cambio de identidad del sistema — faltaban dos ficheros de plantilla propios de la distribución base que esa herramienta necesita para resolver el nombre del sistema.
 
-Decisión pendiente para mañana: qué hacer con las menciones a infraestructura propia de AnduinOS que Solwed no tiene (Apkg como "nuestra" herramienta de paquetes, docs/soporte en dominios de AnduinOS) y para qué idiomas actualizarlo (solo `es`, o también el fallback sin carpeta de idioma). El resto de idiomas (en, fr, de...) no se tocarán salvo que se pida explícitamente — no los verá ningún cliente de un despliegue en español.
+## [Alpha 2.8.0] — 2026-07-09
 
-## Alpha 2.7.0 / 2.8.0 — cierre de los últimos pulidos del Nivel 2 (2026-07-09)
+### Fixed
+- El interruptor de "mostrar el tiempo" del panel de apariencia no venía activado por defecto pese a estar la extensión correspondiente ya instalada y preconfigurada.
+- Teclado por defecto corregido a distribución española (antes en inglés) en consola y en la sesión gráfica.
+- Corregido que la barra superior del escritorio siguiera con el tema neutro de la distribución base en vez del tema de color de marca.
+- Corregido el mismo problema de color en el instalador (Ubiquity) y en cualquier aplicación con interfaz gráfica que herede la configuración por defecto del sistema.
 
-Tres pegas menores que quedaban abiertas del Nivel 2, más el fix del azul en Ubiquity de la auditoría anterior:
+### Changed
+- Reescritas las diapositivas del instalador gráfico en los 27 idiomas soportados, quitando referencias a infraestructura propia de la distribución base y redirigiendo el soporte a los canales de Solwed.
 
-1. **"Mostrar clima" no venía activado por defecto.** Rastreado el checkbox real (app `anduinos-appearance`, Panel derecho → Apariencia → Widgets) hasta que solo lee/escribe `org.gnome.shell enabled-extensions` para `simple-weather@romanlefler.com` — la extensión ya estaba instalada y preconfigurada (`/etc/dconf/db/anduinos.d/18-simple-weather.conf` con `is-activated=true`), pero nunca en la lista de extensiones activadas por defecto. Añadida al override de `99-anduinos-defaults.gschema.override` + `glib-compile-schemas`. **Confirmado.**
-2. **Teclado por defecto en inglés (`us`).** `/etc/default/keyboard` heredado de AnduinOS sin tocar. Corregido a `XKBLAYOUT="es"` / `XKBVARIANT="winkeys"` (Español (Windows)), más un bloque explícito `[org.gnome.desktop.input-sources] sources=[('xkb', 'es+winkeys')]` en el override para que la sesión GNOME en sí (no solo consola/GDM) también arranque en español. **Confirmado.**
-3. **Mismo bug de fondo que el azul de Ubiquity, pero en la barra superior de GNOME Shell.** `/etc/dconf/db/anduinos.d/03-system-extensions.conf` tenía `[org/gnome/shell/extensions/user-theme] name='Fluent-round-Dark'` — el tema de **Shell** (barra superior/overview) seguía en la variante neutra, tema distinto del GTK de apps y de iconos. Corregido a `Fluent-round-yellow-Dark`, aplicado con `dconf update` (no `glib-compile-schemas`, es un override de dconf puro, no de gschema).
-4. **Aplicado por fin el fix de la auditoría anterior:** `gtk-theme='Fluent-round-yellow-Dark'` / `icon-theme='Fluent-yellow-dark'` en `99-anduinos-defaults.gschema.override`, con `glib-compile-schemas` re-ejecutado después (confirmado por la fecha del `gschemas.compiled` posterior a la del override).
+## [Alpha 2.6.0] — 2026-07-08
 
-**Investigación aparte, cerrada sin encontrar bug — "flash" del Plymouth de AnduinOS:** el usuario vio una vez el spinner viejo de AnduinOS (pequeño, esquina superior izquierda, texto "Anduin...OS") en un arranque del Dell. Extraído `casper/initrd.gz` directamente de la ISO construida (`7z e` + `unmkinitramfs`) para comprobar sin especular: `default.plymouth` apunta correctamente a `solwedos/solwedos.plymouth` en el initrd real, y el tema gráfico `anduinos` ni siquiera va empaquetado (solo sobrevive `anduinos-text`, el fallback de consola). El contenido real de la ISO no puede producir ese splash — se descarta como artefacto puntual de hardware/pantalla, no reproducible, no se investiga más sin una repetición.
+### Fixed
+- El tema de cursores (incluido el indicador de carga animado junto al puntero) mantenía el color azul por defecto de la distribución base — es un asset binario independiente del tema de iconos, nunca recoloreado hasta esta versión. Recoloreados los cursores afectados preservando sombreado y transparencia originales.
 
-## Slideshow de Ubiquity reescrito en los 27 idiomas soportados (2026-07-09)
+## [Alpha 2.5.0] — 2026-07-08
 
-Continuación de la auditoría anterior. Dos decisiones de alcance confirmadas por el usuario: (a) quitar las menciones a infraestructura exclusiva de AnduinOS (Apkg, docs.anduinos.com, enlaces al repo/discusiones de GitHub) pero conservar el resto del contenido técnico, redirigiendo el soporte a `solwed.es/contacto`; (b) hacerlo en las **27 carpetas de idioma** bajo `l10n/`, no solo `es`, más el fallback en inglés sin prefijo de carpeta (`slides/` raíz) — reescritura multilingüe completa.
+### Fixed
+- Corregido que el usuario y el nombre de equipo del modo live siguieran mostrando la marca de la distribución base pese a haber editado la configuración correspondiente — el fichero editado se empaqueta dentro de la imagen de arranque en un paso de compilación aparte; sin regenerarla, el cambio no llegaba a aplicarse.
+- Renombrada la aplicación de apariencia del menú de inicio a la marca de Solwed OS.
+- Recoloreado el icono del botón de inicio del menú.
 
-Ejecutado con 26 subagentes en paralelo (uno por idioma, salvo español e inglés hechos a mano como referencia), cada uno con el mismo patrón de edición: brand swap AnduinOS→Solwed OS en todos los ficheros; `welcome.html` sin la mención a repositorio propio de paquetes/Apkg; `apps.html` sin el párrafo de Apkg, retitulado "tres capas"→"dos capas"; `build.html`/`gaming.html`/`privacy.html` solo brand swap; `root.html` sin el enlace al código fuente en GitHub, reescrito como "software libre con licencia GPL" genérico; `support.html` reescrito para quitar docs.anduinos.com y el enlace a discusiones de GitHub, con redirección a `solwed.es/contacto`. Las 189 páginas (27 idiomas × 7 diapositivas) verificadas limpias (`grep -ri "anduin|aiursoft"` sin resultados).
+## [Alpha 2.4.0] — 2026-07-08
 
-El usuario decidió no corregir una lista de erratas/gramática preexistentes de las propias traducciones de AnduinOS (heredadas, no introducidas por este rebrand) detectadas en ~10 idiomas durante la revisión — fuera de alcance, explícitamente aparcado.
+### Fixed
+- Corregido el logotipo que aparecía bajo el panel de inicio de sesión / bloqueo, que seguía siendo el de la distribución base — es un elemento independiente del fondo de pantalla, configurado por separado.
 
-**Capturas de pantalla del slideshow — aparte, aplazadas a propósito:** 5 de las 6 capturas (`usr/share/ubiquity-slideshow/slides/screenshots/`) llevan marca de AnduinOS incrustada en los propios píxeles, no como overlay de texto — revisadas una a una. `sc.png` es directamente un pantallazo del repo de GitHub "AnduinOS 2"; `jb.png` y `pv.png` muestran salidas de `neofetch` con "AnduinOS X.X.X"; `st.png` y `gaming.png` tienen detalles menores (usuario "anduin" visible). Decisión: esperar a tener un sistema arrancable/instalado con el Nivel 3 más avanzado para tomar capturas reales de Solwed OS, en vez de retocar píxeles o usar placeholders genéricos.
+## [Alpha 2.3.0] — 2026-07-08
 
-Horneado en `custom-root/usr/share/ubiquity-slideshow/slides/` (staging en `slideshow-fix/` de este repo) — confirmado sin ningún resto de "anduin" en el árbol final.
+### Changed
+- El splash de arranque pasa de mostrar solo el icono de marca a mostrar el nombre completo junto al icono, con el color de acento aplicado correctamente en el propio icono.
+- Reajustada la posición del logotipo del fondo de pantalla para no chocar con la barra de tareas del escritorio.
 
-## Alpha 3.0.0 — Nivel 3: LibreOffice y Thunderbird preinstalados (2026-07-09)
+## [Alpha 2.2.0] — 2026-07-08
 
-Primer paso del Nivel 3 (comportamiento y apps).
+Primera versión con el arranque y el inicio de sesión (splash, fondo de login) rebrandeados de punta a punta.
 
-- **LibreOffice:** `apt-get install libreoffice` sin sorpresas — suite completa (Writer/Calc/Impress/Draw/Base/Math) más integración GNOME/GTK3.
-- **Bug de `add-apt-repository` con cualquier PPA (no solo el de Thunderbird) — causa raíz encontrada:** el rebrand del Nivel 1 (`ID=solwedos` en `/etc/os-release`) rompió en silencio un mecanismo propio que AnduinOS trae para sí mismo. Dos ficheros en cadena:
-  1. `NoDistroTemplateException: could not find a distribution template for solwedos/resolute` — `add-apt-repository` resuelve las reglas de un PPA desde `/usr/share/python-apt/templates/<ID>.info`. AnduinOS trae el suyo propio (`anduinos.info`, del paquete `anduinos-software-properties-common`, su fork sin publicidad de Ubuntu Pro de `software-properties-common`) — pero `custom-root` tenía instalado el paquete genérico de Ubuntu en su lugar (con toda probabilidad sustituido por una resolución de dependencias de un `apt-get install` anterior, no un purgado deliberado), que no trae ese fichero.
-  2. `FileNotFoundError: /usr/share/distro-info/solwedos.csv` — el `.info` rellena sus placeholders `{series}`/`{codename}` desde un CSV al estilo `distro-info-data`, buscado igual por ID.
+### Fixed
+- Reajustada la posición del logotipo del fondo de pantalla, que se superponía al panel de inicio de sesión.
+- Corregido el texto del menú de arranque del medio de instalación, que seguía nombrando a la distribución base.
+- Mejorado el contraste del fondo de pantalla de bloqueo en modo claro (este sistema reutiliza el fondo de escritorio también para la pantalla de bloqueo, sin clave de configuración independiente).
 
-  Arreglo en los dos casos: copiar el fichero correspondiente (`anduinos.info` → `solwedos.info`, `anduinos.csv` → `solwedos.csv`) desde la ISO limpia de referencia ya extraída — son recursos estáticos genéricos (`{series}`/`{codename}`, sin texto "anduinos" dentro), una copia con el nombre nuevo basta, sin editar contenido.
-- **Thunderbird real, no snap:** instalado vía `ppa:mozillateam/ppa` con un pin agresivo (`/etc/apt/preferences.d/mozillateam-thunderbird.pref`, `Pin: release o=LP-PPA-mozillateam` / `Pin-Priority: 1001`) para que gane siempre sobre el paquete transicional de Ubuntu (que solo tira del snap) — necesario porque AnduinOS ya tiene `snapd` des-priorizado (`no-snap.pref`, prioridad -10), así que el paquete transicional fallaría directamente.
-- **Plugin de WhatsApp Web en Thunderbird preinstalado:** comparadas 4 extensiones de addons.thunderbird.net, elegida "WhatsApp Web in Thunderbird" (GUID `wa-in-th@ftassy.github.io`, v1.4.2) por ser la de mayor adopción (3189 usuarios) con buena nota (4/5), frente a alternativas con muchos menos usuarios o peor valoradas. Instalada por sideload global: `custom-root/usr/lib/thunderbird/distribution/extensions` es un symlink (del propio paquete) a `../../thunderbird-addons/distribution/extensions/`, y `extensions.autoDisableScopes=3` (perfil+usuario, no aplicación) confirma que cualquier `.xpi` ahí se activa solo. `.xpi` versionado en `thunderbird-addons/` de este repo.
+## Primeras versiones — identidad visual e instalación
 
-**Confirmado en el Dell — 2026-07-09.** LibreOffice y Thunderbird "funcionan a la perfección".
+Trabajo previo a la numeración de versiones: identidad del sistema, fondo de pantalla, iconos, cursores y color de acento personalizados; corrección de dos fallos estructurales de arranque heredados de la distribución base (uno relacionado con la partición de arranque UEFI de cualquier imagen regenerada, y otro con una restricción de sandbox de descodificación de imágenes que dejaba el escritorio instalado sin fondo ni iconos).
 
-## Alpha 3.1.0 — carpeta LibreOffice y Thunderbird en el menú de inicio, acceso directo de FacturaScripts (2026-07-09)
+## Problemas conocidos, sin resolver
 
-- **Carpeta "LibreOffice" en ArcMenu con las 7 apps reales** (excluido `libreoffice-xsltfilter.desktop`, filtro interno con `NoDisplay=true`) y **Thunderbird anclado directo**. Mecanismo de ArcMenu, sin documentación oficial, encontrado leyendo su propio JS: una carpeta es una entrada más en `pinned-apps` con forma `{'id': '<uuid>', 'name': '<nombre>', 'isFolder': 'true'}`, cuya lista de apps real vive en una instancia de esquema reubicable en `pinned-apps-folders/<uuid>/` (clave `pinned-apps`, mismo formato). Como dconf no distingue esquemas reubicables de fijos, es simplemente una segunda sección `[org/gnome/shell/extensions/arcmenu/pinned-apps-folders/<uuid>]` más en `10-arcmenu.conf`.
-- **Instalador gráfico de FacturaScripts bajo demanda** (`facturascripts-installer/`): icono de escritorio → `zenity` de progreso → instala Apache+PHP+MySQL+FacturaScripts vía `pkexec`, genera credenciales de BD aleatorias y las deja en un `.txt` en el escritorio. Deliberadamente **no preinstalado** en la ISO (mantiene la base ligera) — patrón distinto al de LibreOffice/Thunderbird, instala solo si el cliente lo pide.
-- **Gotcha de "acceso directo no confiable" en el escritorio, resuelto de forma reutilizable.** Un `.desktop` suelto en `/etc/skel/Desktop/` aparece como "no confiable" hasta que la extensión `ding@rastersoft.com` (Desktop Icons NG) ve el atributo GVFS `metadata::trusted`, que es metadata de sesión por usuario, no algo horneable en la imagen. Fix: `/usr/lib/solwed/trust-desktop-shortcuts.sh` (confía + da permiso de ejecución a todo `.desktop` en `$HOME/Desktop`) enganchado vía `/etc/xdg/autostart/solwed-trust-desktop-shortcuts.desktop`, corre en cada login, barato e idempotente — mecanismo permanente para cualquier acceso directo futuro, no solo este.
-
-## Alpha 3.1.1 — arregla el instalador de FacturaScripts: no hacía nada, y mod_rewrite no cargaba (2026-07-09)
-
-1. **El instalador parecía "no hacer nada" al ejecutarlo.** Causa arquitectónica, no un typo: el `.desktop` original hacía `Exec=pkexec /opt/solwed/install-facturascripts.sh`, elevando **todo el script a root, incluido cada `zenity`**. Esta ISO es Wayland puro (`custom-root/usr/share/wayland-sessions/gnome.desktop`, sin ninguna sesión Xorg disponible) — un proceso root no puede abrir ventanas en la sesión Wayland de un usuario normal (al contrario que en X11, donde `pkexec` sí preserva `DISPLAY`/`XAUTHORITY` para esto). Cada `zenity` fallaba en silencio (su error iba al log, invisible) y la instalación moría casi al instante, sin hacer trabajo real.
-
-   **Fix — patrón general para cualquier instalador `pkexec`+GUI en esta ISO:** separar en dos scripts. `install-facturascripts.sh` (el `Exec=` del `.desktop`, sin `pkexec`) corre como el usuario normal y es dueño de todos los `zenity`; solo eleva el trabajo real con `pkexec /opt/solwed/install-facturascripts-worker.sh | zenity --progress ...` — en una tubería, solo el comando de la izquierda se eleva, el `zenity` de la derecha sigue siendo un proceso normal de la sesión del usuario. El worker no llama a ningún GUI, solo emite el protocolo de `zenity --progress` (`echo "N"` / `echo "# mensaje"`) y manda la salida ruidosa de cada comando (`apt-get`, `mysql`...) a un log aparte. **Confirmado en la Dell — 2026-07-09**, ya se ve la barra de progreso y termina la instalación.
-
-2. **Aviso "Módulo de Apache no encontrado: mod_rewrite" al abrir FacturaScripts.** Real, no cosmético — rompe las URLs limpias de FacturaScripts. Causa: el propio paquete `apache2` arranca el servicio solo nada más instalarse (comportamiento estándar de Debian), antes de que el worker llegue a `a2enmod rewrite` — que solo crea un symlink en disco, no recarga Apache. El `systemctl enable --now apache2` posterior no hacía nada porque el servicio ya estaba activo (`--now` no reinicia un servicio ya en marcha). Fix: `systemctl enable apache2` + `systemctl restart apache2` incondicional justo después de `a2enmod`. Aplicado al worker y confirmado con un `systemctl restart apache2` manual en la instalación ya existente — **pendiente de confirmar con una instalación limpia desde cero** en la próxima ISO generada.
-
-## Alpha 3.1.2 — LibreOffice se cerraba solo al segundo de abrir, instalado (2026-07-10)
-
-Bug #5, misma clase que el de Alpha 2.2.0 (bwrap) pero causa distinta. Solo en sistema instalado, no en live. LibreOffice Writer mostraba el splash y se cerraba solo ~1s después, sin ventana, sin error.
-
-Descartado en orden: el perfil AppArmor propio de `libreoffice-soffice.bin` (desactivado del todo, sin cambio); el tema de iconos `Fluent-yellow-dark` (probado con Adwaita, mismo fallo); el plugin VCL de GTK4 (forzado `SAL_USE_VCLPLUGIN=gtk3`, mismo fallo — prueba de que el fallo está por debajo de la capa de toolkit, en el pipeline de decodificación de imagen en sandbox de glycin que usa cualquier app GTK); versiones/librerías de `glycin-loaders` (todo resuelto limpio con `ldd`).
-
-**Causa real:** `/usr/bin/bwrap` (el mismo wrapper del bug de Alpha 2.2.0, del paquete `anduinos-bwrap-hack`) es un script de shell, no un `exec` directo del binario real. El cargador de SVG en sandbox de glycin se invoca con file descriptors concretos (`--seccomp <fd>`, `--dbus-fd <fd>`) que el proceso llamador espera que lleguen intactos al hijo — la capa extra de `fork+wait` del wrapper no los conserva, así que el cargador muere en ~10ms sin llegar a su propio código, y el wrapper enmascara el fallo real (`2>/dev/null || true`). Confirmado con `RUST_LOG=debug soffice --writer` (glycin trae logging real) y ejecutando `bwrap.real` directamente sin el wrapper, que sí dio un error específico y correcto.
-
-**Fix:** sustituir el cuerpo del wrapper por un `exec` directo, sin fork intermedio:
-```
-#!/bin/sh
-exec /usr/bin/bwrap.real "$@"
-```
-Script en `scripts/fix-bwrap-wrapper.sh`. **Confirmado en live y en instalado** — a diferencia del bug de AppArmor (que solo se manifestaba instalado), aquí se verificó explícitamente en los dos casos antes de cerrar, por precaución.
-
-**Incidente durante el diagnóstico, aparte:** una edición en caliente escribió por error sobre `/usr/bin/bwrap` real (en vez de `bwrap.real`) un script que se auto-referenciaba, causando un bucle infinito de `exec` que colgaba toda la sesión gráfica tras reiniciar (parecía "no arranca", en realidad GDM/glycin colgado, no un fallo de kernel/arranque). Sin backup del binario ELF real a mano, se optó por reinstalar la ISO limpia en el Dell en vez de perseguir una recuperación in-situ — la máquina de pruebas no guarda nada único y el build en sí nunca se vio afectado (la corrupción fue en el sistema instalado, no en el chroot). Lección: al editar scripts críticos del sistema en caliente, escribir siempre a un archivo temporal + `mv` atómico, y verificar la ruta destino dos veces antes de ejecutar.
-
-## Locale, teclado y navegador — confirmado sin diagnosticar en sesión (2026-07-10)
-
-El usuario confirma que locale/teclado/zona horaria ya funcionan bien (aplicado en una sesión anterior no capturada aquí en detalle). El plan de navegador cambia respecto al manual original: en vez de mantener el Firefox propio de AnduinOS con `policies.json`, **se desinstala Firefox por completo y se instala Brave**. Sin detalles capturados todavía de configuración de Brave (homepage/marcadores) — pendiente si se retoma.
-
-## ArcMenu — pin de Firefox obsoleto tras pasar a Brave (2026-07-10)
-
-El cambio de navegador dejó la barra de tareas actualizada (`favorite-apps` en `99-anduinos-defaults.gschema.override` ya tenía `brave-browser.desktop`), pero el **pin del menú de inicio** (`pinned-apps` en `10-arcmenu.conf`) seguía apuntando a `firefox.desktop`, que ya no existe. Confirmado que el id correcto es `brave-browser.desktop` (no `com.brave.Browser.desktop`, que tiene `NoDisplay=true`, un duplicado de emparejamiento de portal). Corregido con `sed` + `dconf update`.
-
-**Lección general:** cualquier app sustituida/quitada necesita un `grep` sobre **todos** los `.conf` de `anduinos.d/` — los pines pueden vivir en más de un sitio (favoritos de barra, pines de menú, carpetas de ArcMenu) y solo se actualiza el que alguien recuerda tocar.
-
-## FacturaScripts — confirmado extremo a extremo, incluida la entrega de credenciales (2026-07-10)
-
-El worker (`facturascripts-installer/install-facturascripts-worker.sh`) crea una base de datos MySQL (`facturascripts_db`, usuario `facturascripts`, contraseña aleatoria de 20 caracteres) y la deja en `~/Desktop/FacturaScripts-datos-acceso.txt` (permisos 600) para pegar en el asistente de primer arranque de FacturaScripts. El asistente pide además unas credenciales de "Administrador" separadas (el login de la propia app) que el script no genera — las elige el cliente libremente en ese paso.
-
-## Nivel 3 — Autofirma, Okular, Remmina (2026-07-10)
-
-- **Remmina** ya estaba instalado de fábrica (`remmina`, `remmina-plugin-rdp`, `remmina-plugin-vnc`...) — solo verificado, sin acción. *(Nota: se probó y se retiró más adelante, ver la entrada de Alpha 4.0.0 más abajo.)*
-- **Okular** — `apt-get install okular`, elegido sobre Xournal++ (solo anotación) y Master PDF Editor (de pago) por su soporte nativo de firma digital, buen acompañamiento de Autofirma.
-- **Autofirma 1.9** (firma electrónica española, `.deb` en `autofirma-installer/`) — instalado con `dpkg -i` + `apt-get install -f` (deps `openjdk-11-jre`, `libnss3-tools`).
-  - **Bug encontrado — confianza de certificado no llega a Chromium/Brave.** El instalador de Autofirma solo registra su certificado raíz en el almacén de confianza del **sistema** (`/etc/ssl/certs`) y en el perfil NSS de Firefox (que ni siquiera existe en build). Chromium/Brave usa su propio Chrome Root Store, no el almacén del sistema — la confianza local debe ir a la base NSS por usuario. Fix: script de primer login `trust-autofirma-cert.sh` (mismo patrón que `trust-desktop-shortcuts.sh`) que puebla el certificado en las dos rutas NSS posibles por usuario (`~/.pki/nssdb` y `~/.local/share/pki/nssdb`, según versión de Brave), idempotente vía `certutil -L` antes de `-A`.
-
-## Curación de paneles, ronda 2 (2026-07-10)
-
-Thunderbird movido del pin de menú de inicio al favorito de la barra de tareas (a la izquierda de Brave); Remmina/Okular/Autofirma añadidos al menú de inicio. IDs `.desktop` reales verificados uno a uno contra variantes decoy (`org.remmina.Remmina.desktop`, no `org.remmina.Remmina-file.desktop`; `org.kde.okular.desktop`, no los `okularApplication_*` por tipo de archivo; `afirma.desktop`, todo en minúsculas pese a que la app se llama "Autofirma"). Favoritos de barra vía gschema override (`glib-compile-schemas`); pines de menú vía dconf (`dconf update`) — dos mecanismos distintos, no confundir.
-
-## Recoloreo de iconos de apps, azul→amarillo (2026-07-10)
-
-El tema `Fluent-yellow`/`Fluent-yellow-dark` solo recolorea un subconjunto genérico (carpetas/chrome) — varios iconos de apps individuales traen su azul fijo dentro del propio SVG. Script `scripts/recolor_svg_icons.py` (sustitución de hex por regex + rotación de matiz) aplicado a Software, Loupe, Text Editor, Geary, Calendar, Amberol, Apariencia (Solwed), Characters, config de red, e icono del instalador de FacturaScripts. Requiere `gtk-update-icon-cache -f -t <tema>` después — la caché binaria del tema no se invalida sola.
-
-**Ronda 2 — gap real encontrado (2026-07-10, tras boot-test de Alpha 3.2.0):** el icono de Software/FacturaScripts (mismo archivo, `org.gnome.Software.svg` == `system-software-install.svg`) quedó "medio arreglado" — asa amarilla, cuerpo de la bolsa azul. Causa: ese SVG no es vector puro, embebe un **PNG en base64** para el cuerpo de la bolsa; el script de sustitución de hex solo tocó los trazos vectoriales. Terminal Ptyxis tampoco estaba en el lote original (no un bug, solo fuera de alcance la primera vez). Ambos corregidos: Ptyxis con el mismo script; el icono de Software/FacturaScripts con uno nuevo (`scripts/fix_software_bag_icon.py`) que revierte los 3 trazos vectoriales a su azul original (era un intercambio de dos tonos deliberado, no "todo amarillo") y recolorea el PNG embebido por separado. **Lección: comprobar `base64` en cualquier SVG de este set antes de fiarse de un fix por sustitución de hex.**
-
-## Alpha 3.2.0 — confirmada en el Dell (2026-07-10)
-
-Primer build que agrupa todo lo de arriba desde 3.1.2: fix del pin de Brave, Autofirma+cert-trust, Okular, Remmina, Thunderbird movido a favorito, recoloreo de 10 iconos. Usuario: "funciona a la perfección".
-
-## Logo "W." de dos tonos mal coloreado + wallpapers nuevos — encontrado, parcialmente aplicado (2026-07-10)
-
-Wallpapers nuevos de mayor resolución (`Fondo_SolwedOS_Claro/Oscuro.png`, artwork más profesional aportada por el usuario) sustituidos sin tocar configuración (mismos nombres de archivo fijos) — **aplicado y confirmado**.
-
-La marca "W." (dos V superpuestas — izquierda amarilla sólida, derecha blanca sólida, más un punto) estaba mal en el watermark de Plymouth y el icono del ArcMenu: las dos piernas "internas" (las más cercanas al cruce) tenían el color de la V contraria. Script `scripts/fix_w_logo_colors.py` (primera versión, heurística por tamaño de mancha conectada) escrito y validado sobre copias — **el primer intento de aplicarlo al chroot no surtió efecto** (mtimes sin cambiar), aparcado para la sesión siguiente. *(La causa real de por qué no aplicó nunca se determinó; y cuando sí se aplicó más tarde, resultó que el propio algoritmo también tenía un fallo — ver la entrada de Alpha 4.0.0 más abajo para el arreglo definitivo.)*
-
-## Alpha 3.2.1 — confirmada en el Dell (2026-07-10)
-
-Corrige lo que a 3.2.0 le faltó del recoloreo de iconos: Ptyxis y el icono de Software/FacturaScripts (bug del PNG embebido). Usuario: "está genial". Baseline vigente hasta el commit del repo del 13 de julio.
-
-## Repo committed — 2026-07-13, commit `c79877d`
-
-Puesta al día del repositorio de Git tras varias sesiones de trabajo sin comittear: Autofirma/Okular/Remmina, curación de paneles ronda 2, recoloreo de iconos (rondas 1 y 2), el intento fallido del logo W., y los wallpapers nuevos. Excluido `autofirma-installer/Autofirma_Linux_Debian.zip` (64MB) del control de versiones — es el mismo `.deb` ya versionado sin extraer del zip, duplicarlo no aporta nada.
-
-## Logo "W." — arreglado de verdad, commit `9dec73a` (2026-07-13)
-
-El intento de Alpha 3.2.0 se reintentó y esta vez sí se aplicó a los archivos reales — pero comparando contra una captura de referencia real aportada por el usuario (`imagenes_Solwed/Logo_Solwed.PNG`), resultó que el propio algoritmo de la primera versión del script tenía un fallo estructural: dejaba 3 de los 4 trazos en amarillo cuando debían alternar Y-W-Y-W entre las dos V. La heurística de "mancha más grande = ancla, manchas de color contrario que la tocan cambian de color" no era lo bastante fiable para separar las dos V.
-
-**Reescrito `fix_w_logo_colors.py` de raíz** para usar la captura de referencia como fuente de verdad en vez de adivinar estructura: clasifica la referencia en un campo continuo de amarillez, recorta el sub-área de la marca en el asset roto (saltándose cualquier texto tipo "Solwed OS" a su izquierda, detectando el hueco de columnas vacías **más a la derecha**, no el más ancho — el espaciado entre palabras del propio texto puede ser más ancho que el hueco real texto→marca), y remapea cada píxel del asset roto por posición normalizada contra la referencia.
-
-Verificación completa antes de cerrar: mtimes/tamaños de archivo, comparación de secuencia de color fila a fila contra la referencia (alternancia Y-W-Y-W confirmada, no solo conteo de manchas — el primer intento fallido había "pasado" esa comprobación más superficial), render visual lado a lado, y tras que el usuario ejecutara `update-initramfs -u -k all`, extracción del `initrd.img` regenerado y comparación byte a byte del `watermark.png` embebido contra el del chroot.
-
-## Timeshift añadido y anclado al menú (2026-07-13)
-
-`apt-get install -y timeshift`, sin configuración adicional. Anclado al menú de inicio (`pinned-apps` en `10-arcmenu.conf`), verificado por timestamp de recompilación de dconf y `strings` sobre la base binaria compilada.
-
-## Remmina instalado y retirado — corrección de alcance (2026-07-13)
-
-Al plantear mover "software RDP" del Nivel 4 al Nivel 3 porque "ya teníamos Remmina instalado", se aclaró que son dos cosas distintas: Remmina es un cliente para que el **usuario** se conecte él mismo hacia fuera por RDP/VNC; el punto de Nivel 4 "Soporte remoto preconfigurado" es la dirección contraria — un agente para que **Solwed** entre al equipo del cliente (tipo TeamViewer/AnyDesk). Una vez aclarado, se decidió que Remmina no aportaba valor por sí solo y se retiró por completo: `apt-get purge -y remmina remmina-common remmina-plugin-rdp remmina-plugin-secret remmina-plugin-vnc`, desanclado de `10-arcmenu.conf`, verificado sin rastro ni en `dpkg` ni en la base dconf compilada.
-
-## Manual reescrito al estado real del proyecto — commit `df52a43` (2026-07-13)
-
-`solwed-os-manual.html` seguía siendo el plan especulativo original, con varios datos ya superados por `ANDUIN-BASELINE.md` (LightDM mencionado pero solo existe GDM3, dconf en `local.d` en vez de `anduinos.d`, `VERSION_CODENAME=noble` en vez de `resolute`, `ID_LIKE=ubuntu` en vez de `debian`, base de Plymouth `spinner` en vez de `anduinos`) y sin documentar nada de lo realmente aplicado. Reescrito nivel a nivel con insignias de estado (✓ Hecho / ↻ Cambiado / ○ Pendiente), tarjetas nuevas para trabajo no contemplado en el plan original (caso de estudio del logo W., patrón pkexec+Wayland para instaladores propios, mecanismo real de ArcMenu, confianza de iconos de escritorio), y una sección nueva "Bugs conocidos de la plataforma" documentando los tres bugs recurrentes con causa raíz y fix (EFI grub.cfg, AppArmor bwrap-userns-restrict, wrapper de bwrap). Verificado con un chequeo de balance de etiquetas HTML y auditoría de enlaces internos rotos antes de comittear, no solo una vista previa visual.
-
-## Alpha 4.0.0 — arranca el Nivel 4: soporte remoto con RustDesk — commit `9527cb3` (2026-07-13)
-
-Primer punto del Nivel 4, elegido por ser el de más impacto de cara al cliente y menos dependiente de los otros dos (repo APT propio, asistente de bienvenida). Decisión: **RustDesk autoalojado** en vez de un agente 100% propio (open source, cliente ya hecho y rebrandeable, sin coste de licencia). Alcance de esta ronda: **solo el lado cliente** — sin servidor (`hbbs`/`hbbr`) todavía, explícitamente aplazado.
-
-- Instalado el `.deb` oficial de RustDesk 1.4.9 (`rustdesk-installer/`), sin recompilar nada.
-- **Mecanismo de preconfiguración verificado contra el código fuente real** (`hbb_common`, no la especulación de la GUI): `~/.config/RustDesk/RustDesk2.toml`, con `rendezvous_server` como string de nivel superior más una tabla `[options]` con `custom-rendezvous-server`, `relay-server`, `api-server`, `key` — nombres de constante confirmados en el propio código (`OPTION_CUSTOM_RENDEZVOUS_SERVER` etc.), `custom-rendezvous-server` con prioridad sobre `rendezvous_server` en la resolución. Plantilla en `rustdesk-installer/RustDesk2.toml`, apuntando a un dominio placeholder (`remoto.solwed.es`, no existe todavía) hasta desplegar el servidor real. Depositada en `/etc/skel/.config/RustDesk/` — cubre tanto el usuario live (casper regenera su home desde `skel` en cada arranque) como cualquier cuenta futura tras instalar, sin script adicional.
-- **Bug real del propio paquete, neutralizado:** el `postinst` de RustDesk hace `systemctl enable rustdesk; systemctl start rustdesk` incondicionalmente — el servicio de **acceso desatendido** (`rustdesk --service`, root, sin presencia del usuario, contraseña permanente), justo lo que el manual pide no activar por defecto. Verificado (no solo asumido) que ese bloque nunca se ejecutó en el chroot de Cubic: no existe `rustdesk.service` en ningún árbol de `systemd/` salvo la plantilla original del paquete — si el `postinst` lo hubiera copiado alguna vez, `systemctl disable` no habría borrado el archivo de la unidad, solo el enlace de activación. Su ausencia total demuestra que el bloque entero se saltó, no que se ejecutó y se deshizo.
-- **Confirmado también en real** (no solo en el chroot): tras generar la ISO y arrancar en el Dell, `systemctl status rustdesk` devuelve "could not be found" — cierra el ciclo de verificación en real que quedó pendiente.
-- **Probado el flujo de consentimiento con el servidor público de RustDesk** (temporalmente, restaurado el placeholder después): funciona bien, con latencia alta esperable — el servidor gratuito compartido (`rs-ny.rustdesk.com`, Nueva York) está congestionado y lejos de España; exactamente el caso de negocio real para tener servidor propio.
-
-## Nivel 4 — arranca el repositorio APT propio — commit `f75de66` (2026-07-13)
-
-Mismo patrón de alcance que RustDesk: preparación del lado cliente, servidor pendiente. Herramienta elegida para cuando se monte: **aptly**, sobre `reprepro`.
-
-- Generada una clave GPG dedicada (RSA 4096, caduca a 2 años — fuerza rotación por diseño). Solo la parte **pública** se versiona en el repo (`apt-repo/solwed-repo-signing-key.asc` armored, `apt-repo/solwed.gpg` binario) y se preinstala en `/etc/apt/trusted.gpg.d/` — segura de dejar activa sin repo real, una clave de confianza sin ningún `sources.list` que la use no hace nada.
-- **El `sources.list` se deja sin activar a propósito** — a diferencia de la clave, un fichero en `/etc/apt/sources.list.d/` se consulta en cada `apt update`, y fallaría visiblemente contra un dominio que no existe. Queda como plantilla (`apt-repo/solwed.list.template`, dominio placeholder `repo.solwed.es`) hasta tener servidor real.
-- **Incidente de seguridad, autocorregido en la misma sesión:** la clave privada se imprimió por accidente en el chat antes de entregarse solo como ruta de archivo. Como no había firmado nada real todavía, se optó por revocarla y regenerar una nueva desde cero en vez de arriesgarse — la segunda generación se entregó exclusivamente como ruta de archivo en la propia máquina del usuario, nunca impresa. Nueva regla general adoptada: cualquier secreto se entrega como ruta de archivo, nunca pegado en el chat.
-- Despliegue del servidor (`aptly repo create/add`, `snapshot create`, `publish snapshot`, patrón de publicación sin downtime con `publish switch`) documentado en el manual, sin ejecutar — no hay servidor todavía.
-
-**Infraestructura para el servidor — en discusión con el jefe, sin decidir (2026-07-13):** valorados un portátil de oficina (descartado para producción por falta de IP pública estable y fiabilidad de hardware no pensado para 24/7) y CloudPanel (viable — no de forma nativa, sino usándolo para el subdominio/TLS sobre un VPS Debian/Ubuntu real, con `aptly` instalado y gestionado aparte por SSH). Dado lo ligero de los requisitos (1 vCPU, ~1GB RAM, pocos GB de disco), la recomendación es reutilizar infraestructura ya existente antes que dedicar una máquina nueva.
-
-## Fondo del login (GDM) desincronizado — encontrado y preparado, sin ejecutar (2026-07-14)
-
-Usuario reportó que la pantalla de login (Alpha 4.0.0 recién generada) seguía mostrando el wallpaper "antiguo". Investigado sin asumir nada: la pantalla de bloqueo de sesión (Super+L) no tenía el problema, solo el login GDM previo a entrar — pista de que no es el mismo mecanismo.
-
-Causa confirmada por mtime: `anduinos-gdm-set-wallpaper` no lee el PNG en cada arranque, lo compila **una vez** en `/var/lib/anduinos-gdm3-wallpaper/solwedos-theme.gresource` (registrado vía `update-alternatives`). Ese binario se generó el 8 de julio con el wallpaper original; cuando se sustituyó `solwed-oscuro.png` por la versión de mayor resolución (10-13 de julio, mismo nombre de archivo), nadie volvió a compilar el `.gresource` — se quedó con el contenido antiguo horneado dentro. Mismo patrón que otros bugs de este proyecto (`icon-theme.cache`, `gschemas.compiled`, initramfs): un binario derivado de un fuente, sin recordatorio de regenerarlo cuando el fuente cambia.
-
-**Fix ya preparado, no ejecutado todavía (a petición del usuario, para el próximo lote antes de un Generate):** `scripts/level2-02-gdm-login.sh` ya existía y hace exactamente lo necesario (recompila + reactiva vía `update-alternatives`), es idempotente, no requirió cambios. Documentado como bug nuevo en el manual (`solwed-os-manual.html`, tarjeta `#bug-gdm-stale-cache` en "Bugs conocidos de la plataforma", más un aviso en la tarjeta `#item-login`) para que la regla ("recompilar el login cada vez que cambie el wallpaper fuente") no se pierda la próxima vez que se toquen los wallpapers.
-
-**Confirmado que sí se aplicó** (verificación pedida por el usuario en la misma sesión): el `.gresource` tenía mtime posterior al PNG fuente (recompilado ese mismo día), la cadena de `update-alternatives` resolvía al archivo correcto con prioridad 160, y el `background.png` extraído del `.gresource` con `gresource extract` coincidía píxel a píxel (dimensiones + muestreo) con el wallpaper actual — no solo "el comando no dio error".
-
-## GRUB — tema gráfico, timeout, e idioma por defecto del ISO (2026-07-14)
-
-Petición del usuario tras cerrar el fix del login: tema de marca Solwed para el GRUB del sistema instalado, timeout de 5s con Solwed OS como entrada por defecto, y que el menú de selección de idioma del propio ISO (al arrancar el USB) resalte "Spanish" por defecto en vez de inglés.
-
-**Tema gráfico — sintaxis verificada contra el manual oficial de GRUB (`Theme file format`) vía fetch real, no adivinada.** Nuevos assets en `grub-theme/`: `theme.txt`, `background.png` (mismo wallpaper oscuro ya usado en todo el proyecto), y 3 fuentes `.pf2` (título 30px, ítems de menú 18px, contador de cuenta atrás 13px). Menú sin iconos ni cajas de pixmap (estilo minimalista, texto con resaltado amarillo Solwed `#F5E70A` en el ítem seleccionado), fondo con `desktop-image-scale-method: stretch` (el wallpaper, 1672×941, ya tiene casi el mismo aspect ratio que 16:9).
-
-**Gotcha de fuentes, mismo patrón que el caso del logo "W.":** `Ubuntu-B.ttf` en este sistema es un symlink al font variable `Ubuntu[wdth,wght].ttf`, sin instancia "Bold" real y separada. Resuelto el índice de instancia correcto con `fc-match -f '%{file}:%{index}' "Ubuntu:bold"` (fontconfig sabe seleccionar instancias con nombre en fonts variables) y verificado contra la tabla `fvar` del propio archivo con `fontTools` en Python que ese índice (327680 = instancia 5, 1-indexed) corresponde de verdad a peso 700 ("Bold") antes de pasarlo a `grub-mkfont -i`. `grub-mkfont` mismo resultó ejecutable directamente desde el host (mismo binario ELF de `custom-root`, sin necesitar el chroot) — es una herramienta de conversión de fuentes sin dependencias del sistema objetivo, no del tipo que necesita correr dentro del chroot.
-
-Comportamiento en `/etc/default/grub`: `GRUB_TIMEOUT_STYLE=menu` (antes oculto), `GRUB_TIMEOUT=5`, `GRUB_DEFAULT=0` (ya era Solwed OS, sin cambios reales), `GRUB_GFXMODE=1920x1080,auto`. Aplicado por `scripts/level2-04-grub-theme.sh` (nuevo, sigue el mismo patrón de los demás scripts de Nivel 2 — copiar a `/root/` y ejecutar dentro del terminal chroot). Probado el `sed` idempotente de reemplazo de claves contra una copia real del `/etc/default/grub` del chroot antes de dar el script por bueno. **Preparado, no ejecutado** — igual que el fix del login GDM de este mismo día, queda para el próximo lote antes de Generate. Solo verificable tras una instalación real (Ubiquity genera el `grub.cfg` real con `update-grub`, no existe uno en el chroot para probar en live).
-
-**Idioma por defecto del ISO — mecanismo totalmente distinto, ya aplicado directamente (no necesitó chroot).** El menú de idiomas del ISO en vivo no sale de `/etc/default/grub`: es un `grub.cfg` de texto plano escrito a mano, duplicado byte a byte en `custom-disk/boot/grub/grub.cfg` (EFI) y `custom-disk/isolinux/grub.cfg` (BIOS). A diferencia de `custom-root/`, `custom-disk/` no es de root — editado directamente con este mismo Bash tool, sin sudo. Cambiado `set default="0"` → `set default="0>11"` (sintaxis de índice compuesto de GRUB: elemento 0 del menú raíz = el submenú "Try or Install Solwed OS", elemento 11 dentro de él, contando desde 0, = "Spanish"/`es_ES.UTF-8`) en ambos archivos. Verificado que siguen siendo idénticos entre sí tras el cambio y que el conteo de `menuentry` confirma que la entrada 11 es realmente Spanish, no otro idioma por error de conteo.
-
-## Bug en pantalla de login: botones azules + toggle de "Estilo" roto (2026-07-14)
-
-Usuario generó Alpha 4.1.0 e instaló — todo lo anterior funcionó, pero reportó dos problemas nuevos en la pantalla de login (GDM, sin sesión iniciada): los botones de WiFi/Accesibilidad/Teclado están en azul (no amarillo Solwed), y el interruptor de modo claro/oscuro no hace nada visible.
-
-**Causa raíz — no es una regresión nuestra, es un defecto heredado de la propia herramienta de AnduinOS que llevaba ahí desde el primer día (2026-07-08), nadie lo había notado hasta ahora:** `anduinos-gdm-set-wallpaper` tiene un paso ("Inject Fluent Theme") que sobreescribe **todos** los CSS extraídos del tema base con un único archivo estático (`/usr/share/anduinos-gdm3-wallpaper/fluent-gnome-shell/gnome-shell.css`) — confirmado idéntico byte a byte a la ISO de referencia limpia de AnduinOS, nunca tocado por ninguna personalización de Solwed. Ese CSS tiene el azul de acento de AnduinOS horneado dentro. Al no notarse antes: en Alpha 2.x-3.x todo el sistema seguía siendo azul, así que no destacaba; ahora que el resto está recoloreado a amarillo, sí.
-
-**Recoloreado (azul → amarillo Solwed), mismo script ya existente (`scripts/recolor_svg_icons.py`, funciona sobre cualquier texto con hex, no solo SVG):** probado primero sobre una copia de scratch antes de tocar el chroot — 11 tonos de azul (hue ~213-215°, la rampa de acento hover/focus/activo) recoloreados, los grises y rojos/naranjas de estado de error (`#DD2C00`, `#FF5252`, `#440e00`, etc.) confirmados intactos, CSS sigue siendo válido (llaves balanceadas 856/856). Aplicar en dos pasos: recolorear el CSS fuente (host, `sudo python3`, no necesita chroot — es solo E/S de archivo) y volver a ejecutar `scripts/level2-02-gdm-login.sh` en el chroot para recompilar `solwedos-theme.gresource` con el CSS ya corregido (el fix del fuente no alcanza al `.gresource` ya compilado hoy).
-
-**Toggle de "Estilo" (modo claro/oscuro) — investigado a fondo, resulta más profundo de lo esperado.** Verificado contra el código fuente real de GNOME Shell (`js/ui/status/darkMode.js`, GitLab de GNOME): el interruptor se registra **incondicionalmente** dentro del propio binario compilado de `gnome-shell` — no depende en absoluto del CSS que tocamos, ni de qué archivos `.gresource` existan. Solo lee/escribe la clave GSettings `org.gnome.desktop.interface color-scheme`. Ocultarlo de verdad requeriría parchear el binario de `gnome-shell` (no se reconstruye ningún paquete en este proyecto) o una extensión propia que corra en la pantalla de login — bastante más invasivo que cualquier cambio hecho hasta ahora, mismo tipo de riesgo que causó el incidente de "sesión gráfica colgada" al tocar `bwrap` a mano. **Decisión del usuario: documentar como limitación conocida** (heredada de AnduinOS, ni el sistema stock lo soporta realmente) — nuevas tarjetas en el manual (`#bug-gdm-fluent-css` en "Bugs conocidos", aviso en `#item-login`).
-
-**RustDesk anclado al menú de inicio (2026-07-14):** estaba instalado desde Alpha 4.0.0 pero nunca se ancló a ArcMenu. `.desktop` correcto verificado (`rustdesk.desktop`, no `rustdesk-link.desktop` — ese es un ayudante oculto `NoDisplay=true` para enlaces `rustdesk://`, mismo tipo de decoy ya visto con Remmina/Okular/Autofirma). Añadido al final de `pinned-apps` en `10-arcmenu.conf`, tras `timeshift-gtk.desktop`. Probado el `sed` contra una copia antes de dárselo al usuario — cambia solo esa línea.
-
-**Fondo del tema de GRUB sustituido por un asset dedicado (2026-07-14):** el usuario aportó `imagenes_Solwed/Fondo_Grub_Solwed.png` (1672×941) — patrón de hexágonos oscuro con el logo "W." disperso en dos tonos, sin el wordmark "SOLWED.es" que sí lleva el wallpaper normal de escritorio. Mejor opción que reutilizar `solwed-oscuro.png`: sin riesgo de que el wordmark choque con la caja del `boot_menu`. Sustituido en `grub-theme/background.png` (mismo nombre de archivo, `theme.txt` no necesitó cambios). Como el paso de copiarlo al chroot (`sudo cp -r grub-theme /root/`) todavía no se había ejecutado, no hizo falta ninguna re-sincronización — el usuario recibirá ya la versión nueva en cuanto ejecute los pasos pendientes.
-
-**Pendiente de ejecutar, todo junto (checklist consolidado 2026-07-14):**
-1. Host: `sudo python3 scripts/recolor_svg_icons.py .../fluent-gnome-shell/gnome-shell.css`
-2. Host: `sudo cp -r grub-theme/ .../custom-root/root/`
-3. Chroot: `bash scripts/level2-02-gdm-login.sh` (recompila fondo+CSS del login)
-4. Chroot: `bash scripts/level2-04-grub-theme.sh` (instala el tema de GRUB, ya con el fondo nuevo)
-5. Chroot: `sed` de `pinned-apps` en `10-arcmenu.conf` + `dconf update` (ancla RustDesk)
-
-## Alpha 4.1.1 — confirmada en real (2026-07-14)
-
-Todo lo de este día (fondo+CSS del login recompilados, tema de GRUB con el fondo de hexágonos, RustDesk anclado) generado y probado por el usuario: "todo funciona sin problema". Cierra el lote completo abierto tras el fix del fondo de login desincronizado — manual actualizado (`#item-grub`, `#item-login`, `#bug-gdm-stale-cache`, `#bug-gdm-fluent-css` con sus insignias/avisos de cierre).
-
-## Plymouth y login vuelven a AnduinOS tras actualizar por Software (2026-07-14)
-
-Usuario reportó, en la Alpha 4.1.1 ya instalada y funcionando, que tras actualizar el sistema desde GNOME Software el splash de arranque volvió a mostrar "ANDUINOS" en vez de la marca "W." de Solwed.
-
-**Causa raíz confirmada contra el `postinst` real de los paquetes de AnduinOS (no supuesta):** tanto `plymouth-anduinos` como `anduinos-gdm3-wallpaper` hacen `update-alternatives --set` **incondicional** a su propio tema cada vez que se reconfiguran — no un `--install` pasivo que respetaría una elección manual, sino un `--set` forzado sin comprobar nada, disparado en cada instalación, reinstalación o actualización. Confirmado en ambos paquetes de la ISO de referencia limpia — comportamiento de fábrica de AnduinOS, no una regresión de Solwed, y se repetirá en cualquier actualización futura de esos dos paquetes, venga de `apt`, GNOME Software o `unattended-upgrades`. Esto es exactamente el tipo de riesgo que se planteó al decidir aplazar el `apt upgrade` general del proyecto (ver entrada anterior) — solo que aquí ocurrió sin que nadie ejecutara nada manualmente, por una actualización normal desde la tienda de software.
-
-**Arreglo inmediato dado para la máquina ya afectada:** `sudo update-alternatives --set default.plymouth .../solwedos.plymouth` + `sudo update-initramfs -u -k all`.
-
-**Prevención permanente — primer hook de APT de este proyecto.** Nuevo `alternatives-guard/` (`reassert-alternatives.sh` + `99-solwedos-alternatives-guard`, instalados por `scripts/level2-05-alternatives-guard.sh`): un `DPkg::Post-Invoke` que se dispara tras cualquier operación de `dpkg`/`apt` — incluida la que hace GNOME Software por debajo (PackageKit sobre `apt`) — y comprueba con un par de `readlink -f` baratos si `default.plymouth` o `gdm-theme.gresource` han vuelto a apuntar a AnduinOS; si es así, los reasigna a Solwed y regenera el initramfs. `|| true` en el propio hook para que un fallo del guardián nunca bloquee una actualización real. Sintaxis comprobada con `bash -n` antes de dar el script por bueno. **Preparado, no ejecutado** — pendiente del próximo lote antes de Generate, y solo verificable con una actualización real posterior (no hay nada que actualizar dentro del chroot para probarlo ahí).
-
-## Auditoría completa de qué más puede revertir AnduinOS + guardián general (2026-07-14)
-
-Usuario preguntó si había más cosas de AnduinOS que pudieran romper el sistema del mismo modo. Cruzada **cada** ruta personalizada en todo el proyecto contra `var/lib/dpkg/info/*.list` y `*.conffiles` de la ISO de referencia limpia, no por sospecha. Resultado: de todo lo tocado en este proyecto, **solo `/etc/casper.conf` está protegido como conffile de verdad** — todo lo demás son archivos de paquete normales, sobreescritos sin negociar en cualquier actualización relevante.
-
-**Paquetes con superficie de riesgo real:** `anduinos-fluent-icon-theme` (13 iconos de apps + los dos temas de cursor completos — el de mayor alcance, deshace varias sesiones de recoloreo de golpe), `anduinos-appearance` (su propio icono), `gnome-shell-extension-arcmenu` (icono del botón de inicio *y* el menú entero curado en `10-arcmenu.conf`), `anduinos-dconf-defaults` (tema de GNOME Shell, logo del login, tema GTK/iconos, favoritos, teclado, widget del tiempo), `grub2-common` (todo `/etc/default/grub`, el trabajo de hoy), `base-files` (`/etc/os-release`/`/etc/lsb-release` — la identidad entera del sistema, el más peligroso, del que dependen GRUB y las plantillas de PPA de python-apt).
-
-**Verificación con una falsa alarma real durante la auditoría, vale la pena dejarla anotada:** varios de los iconos ya recoloreados tenían mtime `1970-01-01` (época Unix), lo que en un primer momento pareció indicar que ya habían sido revertidos en silencio sin que nadie se diera cuenta. Comprobado con el método correcto (comparación de contenido hex contra la ISO de referencia, no mtime) que **seguían correctamente en amarillo** — el mtime en época resultó ser un artefacto de cómo se escribieron esos archivos concretos, no evidencia de nada. **Lección reforzada: mtime no es fiable como única prueba en este proyecto — ya lo era para detectar cambios "no aplicados", pero aquí además dio un falso positivo de "revertido". Comparar contenido real siempre que el mtime sugiera algo sospechoso.**
-
-**Fix — mismo patrón del guardián de Plymouth/GDM, generalizado a todo lo anterior.** Copias conocidas-buenas extraídas del chroot ya verificado correcto (no re-derivadas de los scripts de recoloreo) en `branding/icons/`, `branding/cursors/` (reutiliza los cursores ya trackeados), `branding/panel/` (reutiliza el icono de ArcMenu ya trackeado), y un `branding/system-files/` nuevo que mapea `etc/`/`usr/share/glib-2.0/schemas/` tal cual. Nuevo `alternatives-guard/reassert-branding.sh`: compara cada archivo/directorio contra el sistema en vivo (`cmp`/`diff -rq`) y solo restaura y dispara lo necesario (`gtk-update-icon-cache`, `dconf update`, `glib-compile-schemas`, `update-grub`, cada uno condicionado a si realmente hubo cambio). Segundo hook de APT independiente (`99-solwedos-branding-guard`), separado del de alternativas para poder desactivar uno sin el otro. Lógica de `restore_if_diff` y de comparación de directorios probada de forma aislada (caso distinto/igual/fuente-ausente) antes de integrarla en el script real. Instalador: `scripts/level2-06-branding-guard.sh`.
-
-**Deliberadamente fuera de alcance:** las diapositivas de Ubiquity (`anduinos-installer-config`) — solo importan en el medio de instalación en vivo, no en un sistema ya instalado recibiendo actualizaciones, que es el escenario real de este bug.
-
-**Preparado, no ejecutado** — para el próximo lote antes de Generate, junto con el guardián de alternativas. Solo verificable con una actualización real de alguno de los paquetes listados.
-
-**Corrección tras instalarlo y verificarlo (misma sesión):** la sección de cursores comparaba el directorio `cursors/` completo con `diff -rq` en vez de archivo a archivo — los cursores básicos (`default`, `text`, sus alias `arrow`/`left_ptr`/`xterm`) nunca llevaron azul que corregir (ver la entrada de recoloreo de cursores: excluidos a propósito por el filtro de ruido de antialiasing) así que nunca se trackearon en el repo, y esa ausencia se reportaba como "diferencia" en cada ejecución — no rompía nada (`cp -r` de origen no borra lo que no está en destino) pero copiaba de más innecesariamente. Cambiado a comparar archivo a archivo igual que el resto del script (`restore_if_diff`), coherente y sin falsos positivos. Confirmado con `readlink`/`ls -la` que esos archivos excluidos son legítimamente symlinks/ficheros nunca tocados, no un hueco real de cobertura.
-
-## Alpha 4.2.0 — confirmada en real (2026-07-14)
-
-Generada e instalada con todo lo de este día (login GDM azul→amarillo, tema de GRUB con el fondo de hexágonos, RustDesk anclado, ambos guardianes de APT instalados). Usuario: "parece que todo está en orden". Cierra el lote abierto tras el bug de reversión de Plymouth — pendiente de una actualización real futura para confirmar que los guardianes actúan cuando de verdad hace falta.
-
-## Nivel 4 — servidor de RustDesk (`hbbs`/`hbbr`) desplegado (2026-07-14)
-
-Primer despliegue de infraestructura de servidor del proyecto. Reutilizado el servidor de producción ya existente (`erpsolwed`, Debian 13 trixie, gestionado con CloudPanel) en vez de dedicar una máquina nueva, según lo ya valorado — 12 vCPU/32GB RAM/434GB libres, de sobra para lo que pide RustDesk. Puertos 21115-21119 no chocaban con nada de lo que ya corre ahí (nginx solo usa 80/443).
-
-Desplegado con Docker (script oficial `get.docker.com`) + Docker Compose, `network_mode: host` (recomendación oficial de RustDesk, evita líos de NAT del contenedor) — puertos verificados contra la documentación real de `rustdesk.com/docs`, no adivinados: `21115/tcp` (test de NAT), `21116/tcp+udp` (registro de ID/latido, el único que necesita ambos protocolos), `21117/tcp` (relay de `hbbr`), `21118`/`21119` tcp (soporte de cliente web, opcional, incluidos igualmente). Abiertos en `ufw`. Confirmado con `docker compose ps` (ambos contenedores `Up`) y `ss -tulpn` (los 5 puertos escuchando).
-
-**Sin dominio todavía** — `remoto.solwed.es` no tiene DNS configurado, fuera del alcance inmediato del usuario ahora mismo. Se usa la IP pública directa del servidor (`51.89.21.128`) en la plantilla del cliente mientras tanto. Descartado un reverse proxy de CloudPanel para esto: `hbbs`/`hbbr` hablan TCP/UDP crudo en sus puertos principales, no HTTP, así que el módulo `http` de nginx (lo que expone la UI de CloudPanel) no puede hacerles de proxy — ni falta que hace, el cliente se conecta directo a esos puertos.
-
-**Plantilla de cliente actualizada** (`rustdesk-installer/RustDesk2.toml`): `custom-rendezvous-server`/`relay-server` = la IP, `key` = la clave pública real que generó `hbbs` en su primer arranque (dato público, pensado para repartir a los clientes — no es sensible como la clave privada del incidente del repo APT). Quitado `api-server` de la plantilla: apunta al servidor web de la versión Pro, que no se ha desplegado; dejarlo puesto solo añadiría una llamada fallida más al arrancar el cliente sin aportar nada en la versión OSS.
-
-**Pendiente:** DNS de `remoto.solwed.es` (cuando el usuario pueda) — cambio trivial en la plantilla, no requiere tocar el servidor. Hornear la plantilla actualizada en `/etc/skel/.config/RustDesk/RustDesk2.toml` del chroot para el próximo lote. Repetir la prueba de conexión ya contra este servidor propio (la prueba anterior, exitosa pero con latencia alta, fue contra el servidor público de RustDesk).
-
-## Conexión real confirmada contra el servidor propio + gap de preconfiguración encontrado (2026-07-14)
-
-Con el sistema ya instalado (plantilla horneada en `/etc/skel/`), primera prueba real de RustDesk contra el servidor propio. Primer intento: "la ID no existe" al conectar desde Windows.
-
-**Diagnóstico con evidencia, sin adivinar en ningún paso:**
-- Confirmado que ambos IDs (Solwed OS y Windows) estaban registrados de verdad: `sqlite3 ~/rustdesk-server/data/db_v2.sqlite3 "SELECT id FROM peer;"` los devolvió a los dos. Descartado que fuera un problema de registro.
-- El botón "Exportar configuración" de Windows produjo una cadena que no era base64 estándar. Encontrado el algoritmo real en el propio repo de RustDesk (`flutter/lib/common.dart`, clase `ServerConfig`, vía `gh api search/code` — no adivinado): cadena invertida + base64url de un JSON `{"host","relay","api","key"}`. Decodificada, confirmó que Windows sí tenía el servidor propio correctamente configurado — descartado también eso.
-- Con ambos extremos aparentemente bien configurados y registrados, pero el intento de conexión sin dejar ningún rastro nuevo en el log del servidor (verificado con `docker compose logs --since` para no confundir con log de arranque antiguo), la petición de conexión no estaba llegando a usar el servidor propio en absoluto.
-
-**Resuelto reintroduciendo la configuración a mano** en Configuración de red dentro de la propia app de RustDesk en el Solwed OS (los mismos 3 valores que ya tenía el archivo en disco) — tras eso, nuevo registro en el log y **conexión funcionando**, confirmada por el usuario.
-
-**Causa raíz exacta sin determinar** — el archivo `RustDesk2.toml` heredado de `/etc/skel/` estaba bien escrito y la app sí se registraba con el servidor propio desde el arranque, pero algo no terminaba de aplicarse hasta pasar por la pantalla de ajustes a mano. **Consecuencia práctica documentada en el manual:** cada instalación nueva probablemente necesite ese paso manual una vez, hasta investigarlo a fondo — no bloquea el uso, pero rebaja la promesa de "preconfigurado sin tocar nada". Anotado como pendiente de investigación, no resuelto del todo.
-
-## RustDesk zero-touch — bug cerrado, Alpha 4.3.1 (2026-07-15)
-
-Causa raíz del gap dejado abierto el día anterior, encontrada leyendo el código fuente exacto de la librería que usa `hbb_common` para resolver rutas de configuración (`directories-next`/`xdg-rs/dirs`, función `project_dirs_from` en `src/lin.rs`): en Linux, el nombre de la app se normaliza a minúsculas antes de formar la ruta (`trim_and_lowercase_then_replace_spaces("RustDesk")` → `"rustdesk"`) — solo macOS/Windows respetan el casing original. Nuestra plantilla llevaba desde Alpha 4.0.0 sembrándose en `/etc/skel/.config/RustDesk/RustDesk2.toml` (mayúsculas, calcado del nombre del programa), una ruta que el binario en Linux **nunca lee**. Confirmado con logs de una instalación nueva sin tocar nada: la app arrancaba con config vacía y se conectaba de fábrica al servidor público (`rs-ny.rustdesk.com`), no al propio. El paso manual que "arreglaba" cada instalación no reescribía nada distinto de nuestra plantilla — simplemente la GUI escribe en la ruta real (minúsculas), la única que el binario usa.
-
-**Fix:** sembrar la plantilla en `/etc/skel/.config/rustdesk/RustDesk2.toml` (minúsculas). Aplicado en el chroot y en el repo (`rustdesk-installer/skel-config/rustdesk/RustDesk2.toml`).
-
-**Confirmado en real en Alpha 4.3.1:** instalación nueva, RustDesk abierto directamente sin tocar nada — Configuración de Red ya mostraba el servidor propio de fábrica. El objetivo "zero-touch" de este punto del Nivel 4 queda cerrado.
-
-**Verificación adicional pedida por el usuario — ¿la sesión de control pasa realmente por el servidor propio, no solo el registro?** Confirmado subiendo `hbbs` a `RUST_LOG=debug` temporalmente y repitiendo una conexión real: el log mostró `Fetch local addr "437737703" ... request from ...` (la petición de conexión real, función `handle_punch_hole_request`), no solo el `update_pk` de heartbeat que ya se veía en `info`. Con el nivel de log por defecto este evento de conexión no se ve — solo el registro queda a nivel `info`.
-
-**Consulta del usuario — ¿se pueden atender varias conexiones simultáneas a distintos clientes con Solwed OS?** Revisado el código de `rustdesk-server`: cada conexión corre en su propia tarea async (`tokio::spawn`), sin límite de sesiones concurrentes en la versión OSS (ese límite solo existe en la versión Pro, como restricción de licencia). Confirmado que sí, sin tope técnico — el único límite real sería de recursos del servidor si varias sesiones acaban usando relay en vez de P2P directo.
-
-**Único pendiente real de este punto:** DNS de `remoto.solwed.es` → IP del servidor, cuando el usuario pueda — cambio trivial en la plantilla, no toca el servidor.
-
-## Repositorio APT propio — servidor desplegado, Nivel 4 (2026-07-15)
-
-Segundo punto de Nivel 4 (tras RustDesk) llevado a servidor real, sobre `erpsolwed` (mismo servidor que RustDesk). Clave GPG dedicada (generada el 2026-07-13, ver la entrada de aquel día) importada al keyring de `root` **copiándola directamente desde el escritorio de Windows del usuario al servidor por SCP**, sin leerla ni imprimirla en ningún momento — misma norma aplicada tras el incidente de exposición de aquel día.
-
-**aptly 1.6.3** instalado desde su repo oficial (`repo.aptly.info`, `trixie`). Repo `solwed` creado (`distribution=resolute`, `component=main`) y publicado firmado (`aptly publish snapshot -gpg-key=... -architectures=amd64`), verificado con `gpg --verify` contra el fingerprint real antes de darlo por bueno.
-
-**Bug de permisos encontrado y corregido durante el despliegue:** el `root_dir` por defecto de aptly (`~/.aptly`) cae bajo `/root` para el usuario `root`, con permisos `700` — el usuario que corre nginx en este servidor (`clp`, vía CloudPanel) nunca podría atravesarlo para servir los ficheros. Movido a `/srv/solwed-apt` (permisos normales, fuera de `/home` y `/root`) con un symlink desde `/root/.aptly` para que los comandos de `aptly` sigan funcionando sin flags extra.
-
-**Sitio publicado vía CloudPanel** (`clpctl site:add:static --domainName=repo.solwed.es`), repuntando el `root` del vhost de nginx directamente a `/srv/solwed-apt/public` (con `autoindex on`) en vez de copiar ficheros al `htdocs` por defecto — cada publicación futura se sirve sola.
-
-**Gotcha real encontrado al probar:** este servidor corre dos instancias de nginx en paralelo (la de CloudPanel y la del sistema, en `/etc/nginx/nginx.conf`) — la segunda es la que de verdad tiene los certificados/vhosts de todos los sitios. Recargar la instancia de CloudPanel no aplicaba el cambio del vhost; hizo falta `sudo nginx -s reload` sin `-c` (la instancia por defecto). Probado sirviendo con `curl --resolve repo.solwed.es:443:127.0.0.1 ...` para forzar SNI/Host correctos sin depender del DNS, que aún no existe.
-
-**Certificado actual: autofirmado por CloudPanel**, no Let's Encrypt — esperado sin DNS real. No compromete la integridad del repo (la garantiza la firma GPG del `Release`, no el TLS). Cuando haya DNS, un solo comando (`clpctl lets-encrypt:install:certificate`) lo resuelve.
-
-**Corregida también la plantilla del cliente** (`apt-repo/solwed.list.template`): tenía un prefijo `/apt` que no existe — `aptly publish snapshot` publica en la raíz del dominio, confirmado con `curl` (404 en `/apt/...`, 200 en la raíz).
-
-Añadido `apt-repo/publish-update.sh`, script de referencia para publicar futuros `.deb` sin downtime (`repo add` + `snapshot create` + `publish switch`).
-
-**Único pendiente real:** DNS de `repo.solwed.es` → `51.89.21.128`, cuando el usuario pueda — y en ese momento, pedir el certificado real.
-
-## Acceso desatendido RustDesk en equipo interno — investigado, bug real de Wayland encontrado (2026-07-15)
-
-Usuario pidió activar el modo "Conexión a Escritorio Remoto"-style (sin autenticación ni consentimiento del cliente) para un equipo interno de oficina, no para clientes — caso distinto del acceso desatendido que este punto del manual pide no activar por defecto.
-
-Confirmado que el servicio no se activa solo con `systemctl enable rustdesk` (mismo bug ya documentado el 2026-07-13/14: el `postinst` nunca copia el fichero de la unidad). Se activa a mano copiando la plantilla que el paquete ya trae:
-```
-sudo cp /usr/share/rustdesk/files/systemd/rustdesk.service /usr/lib/systemd/system/rustdesk.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now rustdesk
-```
-
-**Bug real de Wayland encontrado al probarlo, no achacable a Solwed OS:** en Wayland, la captura de pantalla pasa obligatoriamente por `xdg-desktop-portal`, que exige confirmación humana la primera vez ("Seleccione la pantalla que se compartirá") — X11 no tenía esta barrera. RustDesk soporta un `restore_token` (confirmado en el código fuente, `libs/scrap/src/wayland/pipewire.rs`) que evita repetir la confirmación mientras la sesión de GNOME siga activa — pero al bloquear con `Super+L` (o por inactividad/suspensión), el portal revoca la sesión de PipeWire y vuelve a pedir confirmación desde cero. Confirmado que es un bug conocido y ya reportado aguas arriba (PR #14384 de `rustdesk/rustdesk`, sin mergear a día de hoy) — no solucionable desde la configuración de Solwed OS.
-
-**Solución práctica adoptada mientras no llegue el fix upstream:** dejar la sesión de usuario permanentemente iniciada (con su contraseña normal, sin necesidad de autologin) y desactivar todo lo que pueda bloquearla o suspenderla — suspensión automática (Configuración → Energía) y bloqueo/apagado de pantalla por inactividad (Configuración → Privacidad → Bloqueo de pantalla, o `gsettings set org.gnome.desktop.session idle-delay 0` + `gsettings set org.gnome.desktop.screensaver lock-enabled false` si la GUI no ofrece "Nunca"). Queda como responsabilidad del usuario del equipo no pulsar `Super+L` manualmente.
-
-Autologin (`/etc/gdm3/custom.conf`) queda como mejora aparte, solo para el caso de que el equipo se reinicie solo (corte de luz, actualización) — no relacionado con el bug de bloqueo.
-
-Manual (`#item-support`) actualizado con todo el hallazgo, sin tocar el resto de la card ya cerrada.
-
-## DNS real + certificado Let's Encrypt: repo APT y RustDesk migrados a erpsolwed.es (2026-07-16)
-
-Los dos pendientes de DNS que quedaban abiertos (`repo.solwed.es`, `remoto.solwed.es`) llevaban bloqueados desde el 2026-07-15 esperando respuesta del jefe del usuario para tocar la zona `solwed.es` — en concreto, `rustdesk.solwed.es` ya existía apuntando a otra IP (`54.37.230.9`) sin saber si era una reserva libre o un servicio activo de otra cosa.
-
-**Resuelto con un cambio de dominio, sin esperar respuesta**: en vez de pedir los registros bajo `solwed.es`, se crearon como subdominios nuevos de **`erpsolwed.es`** (zona sin ese conflicto): `repo.erpsolwed.es` → `51.89.21.128` y `remoto.erpsolwed.es` → `51.89.21.128`. Confirmado por resolución DNS real (no vía panel), ambos resuelven correctamente.
-
-**Certificado Let's Encrypt real para el repo APT** — el sitio de CloudPanel en `erpsolwed` seguía registrado como `repo.solwed.es` (el dominio abandonado, sin DNS — NXDOMAIN confirmado), lo que bloqueaba `clpctl lets-encrypt:install:certificate` para siempre, incluso pasando `repo.erpsolwed.es` como `--subjectAlternativeName`, porque ese comando siempre valida también el dominio "propietario" del sitio. Solución: creado un **sitio nuevo** en CloudPanel (`site:add:static --domainName=repo.erpsolwed.es`, usuario `repoerp`), pedido el certificado ahí (dominio único, sin SAN), y solo después repuntada su raíz nginx a `/srv/solwed-apt/public` — repuntar el root antes del certificado rompe la validación ACME porque el challenge se escribe en el docroot por defecto de CloudPanel, no en la ruta real del repo. El sitio obsoleto `repo.solwed.es` (sin DNS, solo el `index.html` por defecto, nada del repo real) se eliminó de CloudPanel tras confirmar que no había nada de valor. Verificado extremo a extremo: `curl -v https://repo.erpsolwed.es/` sirve HTTP/2 200, certificado `issuer: Let's Encrypt`, listado real (`dists/`, `pool/`) intacto.
-
-**Plantillas del repo actualizadas** a los dominios reales: `rustdesk-installer/RustDesk2.toml` + `rustdesk-installer/skel-config/rustdesk/RustDesk2.toml` (antes IP cruda `51.89.21.128` → ahora `remoto.erpsolwed.es`) y `apt-repo/solwed.list.template` (→ `repo.erpsolwed.es`, activado de verdad quitando el `.template`). De paso, restringida la línea `deb` a `arch=amd64` — el repo aptly solo publica `amd64`, y sin esto `apt update` avisaba (sin fallar) de que no podía cubrir `i386` en cualquier equipo con esa arquitectura habilitada (p.ej. tras instalar Steam/Wine).
-
-**Lección para este servidor:** `lets-encrypt:install:certificate --domainName=X` en CloudPanel SIEMPRE valida el dominio `X` en sí, nunca solo los SAN — si el sitio quedó registrado bajo un dominio sin DNS real, no hay forma de pedirle un certificado por SAN; hay que crear un sitio nuevo bajo el dominio correcto, pidiendo el cert con el docroot todavía por defecto, y repuntar el `root` del vhost después.
-
-## Alpha 4.4.0 — autologin en modo live roto al añadir la cuenta de soporte (2026-07-15/16)
-
-Al añadir el usuario de rescate `soporte-solwed` (Nivel 4, cuenta para clientes que olvidan su contraseña) y regenerar la ISO, el arranque en modo live dejó de entrar solo con el usuario `solwed` — pedía usuario y contraseña en GDM, cuando antes entraba directo. Primeras hipótesis (choque de UID exacto 1000, initramfs desactualizado) descartadas con evidencia real, sin encontrar la causa — sesión bloqueada esperando un log de arranque real.
-
-**Causa raíz real, encontrada 2026-07-16 con el primer log de arranque conseguido:** en `/usr/lib/user-setup/functions.sh`, la función `is_system_user()` comprueba si `/etc/passwd` ya tiene **cualquier** UID entre 1000 y 59999 (no un UID exacto) y, si lo encuentra, asume "ya existe una cuenta de usuario, no crear una automática". `user-setup-apply` (invocado desde `casper-bottom/25adduser`) solo crea el usuario live si `! is_system_user`. Al estar `soporte-solwed` en UID 1001 (dentro de ese rango), la comprobación empezó a devolver verdadero y **toda la creación del usuario `solwed` se saltaba silenciosamente** — incluida la configuración de autologin de GDM, que vive dentro del mismo bloque `if`. El fix previo de UID 1000→1001 no sirvió de nada porque la comprobación nunca fue por un número exacto.
-
-**Fix:** añadida `export OVERRIDE_SYSTEM_USER=1` en `custom-root/usr/share/initramfs-tools/scripts/casper-bottom/25adduser`, justo antes de la llamada a `user-setup-apply` — variable de escape ya soportada oficialmente por `is_system_user()`. Verificado con evidencia dura (extracción y grep del initrd real, no solo mtime).
-
-**Cerrado y confirmado en Alpha 4.5.0:** arranque live directo como `solwed`, sin pedir usuario/contraseña.
-
-## Alpha 4.5.1 — el mismo bug también rompía la instalación real (2026-07-16)
-
-Tras confirmar Alpha 4.5.0 en live, apareció el mismo síntoma en una **instalación real**: el usuario elegido durante el asistente de Ubiquity no llegaba a crearse, solo se podía entrar como `soporte-solwed`.
-
-**Causa: Ubiquity tiene su propia copia duplicada de `user-setup-apply`/`functions.sh`**, con el mismo `is_system_user()`, que nadie había parcheado. En `custom-root/usr/lib/ubiquity/plugins/ubi-usersetup.py`, clase `Install.prepare()`, el modo OEM ya pasaba `OVERRIDE_SYSTEM_USER: '1'`, pero el modo de instalación normal (el que usa cualquier cliente real) pasaba `environ = {}` vacío.
-
-**Fix:** mismo patrón, `environ = {'OVERRIDE_SYSTEM_USER': '1'}` en el modo normal.
-
-**Cerrado y confirmado en Alpha 4.5.1:** instalación real completa, el usuario elegido durante el setup se crea correctamente.
-
-**Lección general:** cualquier fix de `user-setup`/`is_system_user` debe aplicarse en las dos copias que vive en la imagen (`/usr/lib/user-setup/`, usada por casper en live, y `/usr/lib/ubiquity/user-setup/` + `ubi-usersetup.py`, usada por el instalador real) — son ficheros duplicados, no compartidos.
-
-**Bug menor encontrado en el mismo boot-test, también arreglado:** RustDesk de `soporte-solwed` seguía mostrando la IP cruda en vez del dominio — su carpeta de usuario se creó (horneada en la imagen) antes de que se actualizara `/etc/skel` al dominio nuevo, y `/etc/skel` no se copia retroactivamente a cuentas ya existentes. Refrescado a mano su `RustDesk2.toml`. Cualquier cuenta pre-horneada necesitará este refresco manual cada vez que cambie una plantilla de skel, hasta que exista un mecanismo automático (mismo patrón que `alternatives-guard`/`branding-guard`).
-
-## Icono de Software/FacturaScripts — azul→naranja (2026-07-16)
-
-El asa y el brillo del icono de la bolsa (amarilla desde el recoloreo del Nivel 3) seguían en azul. Un solo fichero real (`gnome-software.svg`) resuelve los dos iconos a la vez — `org.gnome.Software.svg` y `system-software-install.svg` son symlinks a él, no copias separadas. Mismo método de rotación de matiz (preserva saturación/valor) que los recoloreos anteriores del proyecto: `#6694ff→#ffad66`, `#1754d3→#d36f17`, `#5284ff→#ffa352`.
-
-## Asistente de bienvenida — Nivel 4 cerrado, Alpha 4.6.0 (2026-07-16)
-
-Último punto pendiente de los 4 Niveles del manual original. Deliberadamente **no** se construyó un reemplazo de `gnome-initial-setup` (mucho desarrollo real para lo que aporta) — un diálogo `zenity --info` de una sola vez, con la lista de apps preinstaladas y un puntero a soporte (RustDesk/solwed.es), reutilizando el patrón idempotente ya usado en el proyecto (script en `/usr/lib/solwed/`, autostart en `/etc/xdg/autostart/`, marcador en `~/.config/`). Fuente en `welcome-wizard/`.
-
-**Bug real encontrado antes de aplicar, no después:** la primera versión se habría disparado en todos los arranques live, no solo una vez — casper regenera el usuario `solwed` desde cero en cada arranque, así que el marcador de "ya mostrado" nunca sobreviviría de un boot al siguiente. Fix: `grep -q boot=casper /proc/cmdline && exit 0` al principio del script. Lección para cualquier futura función de "primer login": comprobar siempre `boot=casper` antes de asumir que la lógica de "solo una vez" se comporta igual en live.
-
-Contenido actualizado el mismo día para mencionar Timeshift, a petición del usuario, coherente con la nueva diapositiva del catálogo del slideshow (ver más abajo).
-
-## Slideshow del instalador reescrito de contenido y capturas — Alpha 4.7.0 (2026-07-16)
-
-Tres diapositivas seguían siendo la plantilla genérica de Ubuntu/AnduinOS (juegos, Docker, Flatpak/Snap) — irrelevante para el cliente real de Solwed (pyme española con FacturaScripts/Autofirma, no desarrolladores ni gamers). Reescritas y renombradas para que el nombre de archivo coincida con el contenido:
-
-- `gaming.html` → **`catalog.html`** — catálogo de apps preinstaladas + Timeshift.
-- `build.html` → **`support-remote.html`** — RustDesk, soporte a un clic.
-- `apps.html` → **`updates.html`** — actualizaciones automáticas vía repo propio + Tienda de software.
-- `privacy.html` suavizada: "nunca recopilamos tus datos" → "sin telemetría ni recopilación de datos por defecto" (decisión de negocio explícita, no un cambio técnico).
-
-Traducido a los 27 idiomas vía 6 agentes en paralelo (mismo patrón que la reescritura original de 2026-07-09), verificado sin restos de contenido viejo (Steam/Docker/Flatpak) en ningún idioma tras dos rondas (la primera pasada de borrado usó `find -maxdepth 2`, que no llegaba a `slides/l10n/<idioma>/*.html` a 3 niveles de profundidad — quedaron 81 ficheros huérfanos hasta la segunda pasada sin límite de profundidad).
-
-**Los dos manifests que referencian los nombres de archivo** (`index.html`, `directory.jsonp` — antes sin trackear en el repo) actualizados para los 3 renombres; confirmado que son las únicas dos referencias a esos nombres en todo el paquete `ubiquity-slideshow`.
-
-**Las 5 capturas con marca de AnduinOS — cerradas del todo, ya no es un punto pendiente.** `welcome.png` (fondo compartido de `welcome`/`support`/`privacy`) sustituida por el wallpaper real de Solwed OS con el logo "W."/wordmark **quitado mediante inpainting** (OpenCV `cv2.inpaint`, detección del bounding box por contraste de brillo + relleno `INPAINT_TELEA`, limpio y sin artefactos en las dos variantes clara/oscura). Las otras 4 (`catalog`, `support-remote`, `updates`, y `sc.png` de `root.html`) sustituidas por **capturas reales del sistema instalado** aportadas por el usuario (menú ArcMenu, ventana de RustDesk, panel de actualizaciones, terminal), recortadas a la ventana relevante — las 4 diapositivas que las usan volvieron del layout "wide" (fondo genérico, parche temporal) al layout original con captura lateral, transformación scriptada sobre 84 ficheros (3 diapositivas × 28 copias). Cero menciones de "anduin" en todo el árbol `ubiquity-slideshow` tras esto.
-
-## Repo de AnduinOS — decisión de mantenerlo activo (2026-07-16)
-
-Se planteó desactivar `packages.anduinos.com` (`Enabled: no` en el `.sources`) para cerrar de raíz el vector que causó el regreso de branding tras la actualización del 14 de julio. El usuario decidió confiar en que los guardianes (`alternatives-guard`/`branding-guard`) ya cubren ese escenario — razonamiento correcto en principio, pero esos guardianes siguen sin haberse visto disparar ante una actualización real. Revisar de nuevo si ese supuesto falla algún día.
-
-## RDP multiusuario simultáneo — investigado, aparcado pendiente de decisión de negocio (2026-07-16)
-
-El usuario preguntó si se puede sustituir la cuenta compartida `soporte-solwed` (riesgo real: contraseña única para toda la flota, con sudo, sin rotación posible sin visitar cada máquina) y si es posible un RDP tipo Windows con varios técnicos conectados a la vez al mismo equipo — la opción "Escritorio remoto" de Configuración solo espeja la sesión física, un usuario a la vez.
-
-**Hallazgo clave:** `gnome-remote-desktop` (versión 50.0, ya instalado de fábrica) soporta un modo headless multiusuario real desde GNOME 46 (`grdctl --system rdp set-tls-key/set-tls-cert/set-credentials/enable`) — crea sesiones nuevas independientes vía GDM `RemoteDisplayFactory`, sin tocar la sesión local del cliente. Pero **la misma cuenta no puede tener dos sesiones headless simultáneas** (la segunda expulsa o hereda la primera según versión) — hace falta una cuenta por técnico, no una compartida, para acceso simultáneo real. Esto conecta ambas preguntas: cuentas individuales (`soporte-alex`, `soporte-ivan`, de momento son 2) resuelven a la vez el problema de la contraseña compartida y habilitan el RDP multiusuario.
-
-**Decidido:** sí, sustituir `soporte-solwed` por las 2 cuentas individuales. **Pendiente de decidir con el jefe:** cómo restringir el puerto RDP (3389) sin VPN/Tailscale a la red del cliente — con IP de oficina dinámica, una lista blanca fija de firewall no es fiable; se propuso (sin decidir) un modelo de "puerto cerrado por defecto, abrir solo durante la sesión de soporte". **Nada de esto aplicado todavía** — ni cuentas, ni `grdctl`, ni firewall.
-
-## Contraseña de rescate: `soporte-solwed` deja de tener contraseña compartida (2026-07-17)
-
-Punto de partida: `soporte-solwed` (la cuenta de rescate para clientes bloqueados) tenía `sudo` y una contraseña de fábrica igual en todo el parque de máquinas — mismo riesgo, en la práctica, que el de un root compartido. Diseño implementado en `rescue-password/`: cada máquina genera su propia contraseña en el primer arranque real y la registra en un servidor propio (`remoto.erpsolwed.es`, FastAPI + SQLite + Docker sobre `erpsolwed`, mismo patrón que `hbbs`/aptly), asociada al ID de RustDesk de esa máquina — el mismo ID que el cliente ya lee en pantalla, sin depender de que nadie sepa de antemano qué máquina es. Servidor con dos tokens separados: uno horneado en cada imagen que solo permite escribir una vez por ID (403/409 en cualquier intento posterior), y otro solo en manos de soporte para consultar. `scripts/level3-04-support-account.sh` pasó a crear la cuenta con `adduser --disabled-password` — nace sin ninguna contraseña utilizable, ni siquiera una "de fábrica" temporal.
-
-**Tres bugs reales encontrados y cerrados en el primer boot-test de `solwed-rescue-password.service`, ninguno relacionado con red:**
-
-1. **`tr`/`head` + `pipefail`.** La línea que genera la contraseña (`tr -dc 'A-Za-z0-9' </dev/urandom | head -c 20`) fallaba el 100% de las veces, en menos de un segundo, mucho antes de tocar red — clásico gotcha de bash: `head -c 20` cierra la tubería en cuanto lee sus bytes, `tr` recibe `SIGPIPE`, y con `set -euo pipefail` ese fallo interno tumbaba el script entero. Fix: `NEW_PASSWORD=$(set +o pipefail; tr ... | head -c 20)` — el subshell de `$(...)` aísla el `set +o pipefail` sin afectar al resto del script.
-2. **ID de RustDesk equivocado — registraba la identidad de *root*, no la del cliente.** El servicio corre como root (sin `User=` en la unidad), y RustDesk guarda su identidad en el `HOME` de quien lo ejecuta — cada cuenta tiene la suya. `rustdesk --get-id` a secas devolvía un ID real, pero el de root, generado ahí mismo en el momento por no existir antes; nunca el que el cliente ve en su propia sesión. Confirmado con datos duros: el servidor tenía registrado el ID de root (`437737703`) mientras el ID real del cliente (`1087038412`) devolvía 404. Fix: el script busca la primera cuenta de usuario "real" (UID de rango normal, con `HOME` propio) **excluyendo explícitamente `soporte-solwed`** — que al crearse en el build de la imagen, antes de que exista la cuenta real del cliente, suele quedarse con el primer UID libre y sería el primer falso positivo de cualquier heurística ingenua — y ejecuta `rustdesk --get-id` como esa cuenta vía `runuser -l`.
-3. **Ninguno de los 4 pasos de despliegue va en la terminal chroot de Cubic.** Se intentó ejecutar los `cp` de despliegue directamente en la terminal `root@cubic` de Cubic, que es un `chroot` puro sin el filesystem del host montado — `/home/aruizb/...` no existe ahí dentro. Los `cp`/`mkdir` que traen ficheros del repo van en una terminal normal del host con `sudo`, apuntando a `custom-root/`; solo lo que no necesita ver el repo (como `passwd -l`) va en la terminal de Cubic.
-
-**Confirmado end-to-end en Alpha 4.8.0, máquina de pruebas real:** instalación offline → contraseña generada y aplicada localmente sin red → reintentos automáticos cada 60s (`Restart=on-failure`, `RestartSec=60`, sin límite) → al conectar internet, registro correcto en el servidor con el ID real del cliente → login como `soporte-solwed` con la contraseña generada, funciona.
-
-## Banner del ID de soporte en la pantalla de login (2026-07-17)
-
-Problema de diseño real detectado por el usuario, no técnico: todo el flujo de rescate asumía que el cliente lee su ID de RustDesk abriendo la app — pero el cliente bloqueado fuera de su cuenta (el caso que este sistema existe para resolver) no puede llegar a ningún escritorio para abrir nada. El ID en sí se resuelve solo, sin sesión gráfica (confirmado: el mismo `runuser -l` del punto anterior ya lo consigue). El hueco real era cómo se entera el cliente de cuál es.
-
-**Decisión de diseño explícita:** mostrar el ID en la propia pantalla de login de GDM, legible sin autenticarse — no una tabla ni un buscador en una web (se valoró y se descartó: una tabla con todas las contraseñas juntas es mucho más superficie de exposición si el acceso se filtra, y el flujo real por teléfono no la necesita — el cliente ya lee el ID, no hace falta que el técnico lo busque por nombre).
-
-**Bug de plataforma real encontrado en el camino, dos capas:**
-
-1. **`greeter.dconf-defaults` no se aplicaba nunca — bug conocido y ya reportado aguas arriba en Debian (bug #1051671), no exclusivo de este proyecto:** el mecanismo estándar de Debian (perfil `/etc/dconf/profile/gdm` + `/etc/dconf/db/gdm.d/`) no lo crea ningún paquete. Pero **este sistema (Ubuntu/AnduinOS) usa un parche propio y más simple**, descubierto leyendo la plantilla real (`/usr/share/dconf/profile/gdm`): `file-db:/var/lib/gdm3/greeter-dconf-defaults`, una base de datos GVariant compilada como un único fichero binario, **regenerada automáticamente por el propio GDM en cada arranque de `gdm.service`** a partir de `/etc/gdm3/greeter.dconf-defaults` — sin necesitar perfil ni triggers de dpkg. Confirmado con `strings` sobre el binario compilado: el texto del banner sí llegaba correctamente a la base de datos.
-2. **El banner sí se aplicaba, pero no se veía — GDM salta la vista de lista de usuarios cuando solo hay uno.** Con un único usuario visible (`soporte-solwed` está oculto de la lista vía `AccountsService`), GDM va directo a la pantalla de contraseña de ese usuario, saltándose la vista donde vive el banner. Confirmado con una foto real de la pantalla: no aparecía en la vista de un solo clic, pero sí en la vista manual (enlace "¿No está en la lista?"). El esquema real (`org.gnome.login-screen.gschema.xml`, GNOME Shell 50.1) se leyó directamente para confirmarlo — existe una clave `disable-user-list` que forzaría siempre la vista manual, pero cambiaría el login diario de todos los clientes para un caso que solo ocurre en una llamada de rescate.
-
-**Decisión del usuario:** no tocar el login diario. El técnico simplemente indica por teléfono pulsar "¿No está en la lista?" durante una llamada de rescate — cero cambio de UX para el uso normal.
-
-**Implementación final:** `rescue-password/set-login-banner.sh`, idempotente, escribe `banner-message-enable=true` + `banner-message-text='ID de soporte: <ID>'` en `/etc/gdm3/greeter.dconf-defaults` sin depender de red ni de que el registro en el servidor tenga éxito. Se ejecuta en dos puntos: justo después de resolver el ID en `report-rescue-password.sh`, y como paso añadido en `alternatives-guard/reassert-branding.sh` — ese fichero ya estaba bajo el guard (se restaura desde una copia estática tras cualquier actualización de paquetes), así que el ID dinámico por máquina se reaplica siempre justo después de cualquier restauración, para no perderlo en la siguiente actualización del sistema.
-
-**Confirmado con foto real del panel de login en Alpha 4.8.0:** el rótulo "ID de soporte: 1087038412" visible en la vista manual, tras un reinicio real (no solo un restart de servicio).
-
-## Contraseña de rescate: interfaz de consulta para soporte + endurecido del servidor (2026-07-21)
-
-Hasta ahora, consultar una contraseña ya registrada solo era posible a mano con `curl` contra `GET /rescue-credentials/{id}` (o, en su defecto, el Swagger autogenerado por FastAPI en `/docs`). Cerrado el último punto pendiente del sistema de rescate con tres cambios, todos en `rescue-password/server/`, probados primero en local (uvicorn efímero) y verificados en real tras cada despliegue:
-
-**1. Formulario web para el técnico.** Nueva ruta `GET /soporte` (inicialmente `/lookup`, renombrada el mismo día a petición del usuario): un campo de ID + botón "Consultar" que devuelve la contraseña directamente en la página. Protegido con HTTP Basic Auth reutilizando el `STAFF_READ_TOKEN` ya existente (usuario libre, la contraseña del diálogo del navegador es el token, comparado con `secrets.compare_digest` para evitar fugas por tiempo de comparación) — el navegador recuerda el login durante la sesión, sin volver a teclear cabeceras cada vez. Reutiliza la misma consulta/desencriptado Fernet que la API JSON (`_fetch_credential`, factorizado del endpoint original), sin tocar ni el `GET` JSON ni el `POST` de registro que ya usan las máquinas.
-
-**2. Hallazgo de seguridad, detectado por el usuario al probar la URL a mano: `/docs`/`/redoc`/`/openapi.json` quedaban públicos sin ninguna autenticación**, exponiendo la estructura completa de la API — incluida la existencia de `/rescue-credentials` y su esquema de auth — a cualquier visitante anónimo del dominio. Con `/soporte` ya cubriendo el caso de uso humano, no hacía falta mantenerlos abiertos ni protegerlos: se desactivaron del todo con `FastAPI(docs_url=None, redoc_url=None, openapi_url=None)`. Verificado: las 3 rutas devuelven 404 tras el despliegue.
-
-**3. Confirmado que `soporte-solwed` también queda oculta en Ajustes → Usuarios de GNOME, no solo en la lista de GDM** (duda del usuario: ¿y si alguien la ve y la borra sin querer, pensando que es una cuenta sobrante?). Mismo mecanismo en las dos superficies: `/var/lib/AccountsService/users/soporte-solwed` con `SystemAccount=true`. Verificado primero a nivel de código (`strings` sobre el `gnome-control-center` real del ISO limpio de referencia — el binario referencia el símbolo `act_user_is_system_account` de `libaccountsservice`, la misma función que ya usa GDM para excluirla de su lista) y confirmado después con un boot-test real por el usuario: no aparece en el panel.
-
-**Extra, sin relación con seguridad:** el fichero del servidor se renombró de `app.py` a `soporte-solwed.py` (y el `Dockerfile` actualizado en `COPY`/`CMD`) a petición del usuario, para que el nombre sea autoexplicativo al mirar el servidor. Confirmado que `uvicorn soporte-solwed:app` carga sin problema pese al guion — `importlib.import_module()` (usado internamente por uvicorn) acepta nombres de módulo con guion cuando se pasan como string, aunque no serían válidos en una sentencia `import` normal de Python.
-
-**Ajuste final el mismo día: `/soporte` pasó de `GET` a `POST`**, a petición del usuario — no quería el ID visible en la barra de direcciones, el historial del navegador ni los logs de acceso (el ID no es secreto en sí mismo, pero no había razón para dejarlo ahí). Separado en `GET /soporte` (solo pinta el formulario vacío, ya no acepta el ID como query param) y `POST /soporte` (`rustdesk_id: str = Form(...)`, hace la consulta real), compartiendo el render vía una función auxiliar común. Requirió añadir `python-multipart` a `requirements.txt` — FastAPI lo exige para parsear formularios y no hacía falta hasta tener uno. Probado en local antes de desplegar y verificado en real después: 401 sin credenciales, formulario vacío por `GET`, contraseña correcta por `POST` con el token.
-
-Con esto, el ítem "Contraseña de rescate" del manual queda cerrado por completo, sin nada pendiente.
-
-## Admin sin confirmación repetida — Alpha 4.8.1, decisión de negocio, aplicado en custom-root, pendiente de boot-test (2026-07-21)
-
-Petición real: a un usuario normal le resulta molesto tener que teclear su contraseña cada vez que una acción pide permisos de administrador. Se planteó la duda al usuario con las dos opciones reales sobre la mesa — una lista curada de acciones "seguras" (mismo mecanismo que ya usa Ubuntu de fábrica en `com.ubuntu.desktop.rules` para montar discos, cambiar hora, etc.) frente a quitar la confirmación del todo para cualquier acción admin — y **eligió la segunda, con el trade-off de seguridad explícito ya aceptado**: mientras la sesión del administrador siga activa, cualquier acción que pida permisos admin se aprueba sola, sin pedir contraseña ni ningún tipo de confirmación — igual que una cuenta administradora de Windows/Mac tras iniciar sesión.
-
-**Mecanismo: reglas de polkit (`/etc/polkit-1/rules.d/*.rules`, JavaScript), no `sudo`** — son sistemas totalmente distintos; `sudo` en terminal ya cachea 15 min por defecto y no se ha tocado. Nueva regla, `polkit/00-solwed-admin-no-prompt.rules`:
-
-```js
-polkit.addRule(function(action, subject) {
-    if (subject.isInGroup("sudo") && subject.active && subject.local) {
-        return polkit.Result.YES;
-    }
-});
-```
-
-**El prefijo `00-` del nombre de fichero no es cosmético — es la parte que hace que la regla funcione de verdad.** Verificado leyendo el manual real de `polkit(8)` (no adivinado): polkit combina los ficheros de *todos* los directorios de `rules.d` y los ordena por el nombre de fichero (no por directorio), y la primera función `addRule()` que devuelve un valor distinto de `undefined` gana, deteniendo la evaluación ahí mismo. Con `00-` se evalúa antes que cualquier otra regla del sistema (`49-ubuntu-admin.rules`, `50-default.rules`, `com.ubuntu.desktop.rules`, `gnome-control-center.rules`...), así que decide siempre para cualquier acción, sin depender de que ninguna regla más específica la cubra antes.
-
-**No hace falta meterlo bajo `alternatives-guard`/`branding-guard`.** Es un fichero nuevo que ningún paquete posee — `polkitd` nunca lo instala ni lo conoce, así que ninguna actualización de `apt` lo va a tocar ni revertir; esa clase de bug (documentada en `CLAUDE.md`, sección "Update-survival") solo afecta a ficheros que *editamos* y que ya pertenecen a un paquete `anduinos-*`.
-
-Instalación vía `scripts/level3-05-polkit-no-prompt.sh` (mismo patrón que el resto de Nivel 3: copiar el `.rules` a `custom-root/root/` desde el host con `sudo`, ejecutar el script dentro del terminal chroot de Cubic) — `install -m 644 -o root -g root`, sin necesitar ningún comando de recarga, `polkitd` recoge ficheros nuevos solo.
-
-**Sintaxis validada** (`node --check` sobre una copia del fichero con extensión `.js`, y `bash -n` sobre el script) y **ya aplicado en `custom-root`, verificado por checksum** (`sudo md5sum`/`sudo stat` del usuario: idéntico al fichero del repo, permisos `644 root:root`) — esta sesión no puede leer directamente `custom-root/etc/polkit-1/rules.d/` (750, sin TTY para sudo). Etiquetado como **Alpha 4.8.1**. Pendiente, ya solo de infraestructura: generar la ISO y confirmar con boot-test real que, tras iniciar sesión una vez, ninguna acción admin vuelve a pedir nada durante esa sesión.
-
-## El ID de recuperación deja de depender de RustDesk — bug real encontrado, generación propia (2026-07-21)
-
-**Bug real reportado por el usuario tras instalar "la última versión":** dos instalaciones distintas del mismo cliente terminaron mostrando el mismo ID en la pantalla de login. Causa más probable, no una única confirmada: la instalación no partió de disco realmente vacío (VM o partición reutilizada sin formatear de cero), lo que puede dejar sobrevivir dos cosas de la instalación anterior — la propia identidad de RustDesk del cliente en `~/.config/rustdesk/` (RustDesk solo genera un ID nuevo si no encuentra uno ya guardado) y/o el marcador de `report-rescue-password.sh` (`/var/lib/solwed/rescue-password-done`), que hace que el script ni siquiera reintente el registro porque cree que ya se hizo.
-
-**Decisión: dejar de depender del ID de RustDesk del todo.** A partir de ahora Solwed genera su propio ID de recuperación de 9 dígitos, sin relación con la identidad de RustDesk de nadie — quita la dependencia de un sistema externo cuya generación de identidad no se controla, y **simplifica bastante el script**: desaparece toda la lógica que esperaba (hasta 60s, reintentando cada 2s) a que RustDesk asignara un ID, y la heurística para encontrar la cuenta "real" del cliente excluyendo `soporte-solwed`.
-
-**Algoritmo, en `report-rescue-password.sh`:** mezcla `/dev/urandom` (32 bytes, la fuente principal de aleatoriedad real) con fecha/hora a nanosegundo, la MAC de la máquina, el `boot_id` del kernel (`/proc/sys/kernel/random/boot_id`, un UUID que el propio kernel regenera en cada arranque) y el hostname, todo junto por `SHA-256` en vez de concatenar dígitos a pelo — el efecto avalancha del hash desordena por completo cualquier parecido entre máquinas clonadas de la misma plantilla casi en el mismo instante, que es precisamente el escenario que causó el bug original. Los primeros 15 caracteres hexadecimales del hash (60 bits, no desborda el entero de 64 bits con signo de la aritmética de bash) se reducen módulo 900.000.000 más un desplazamiento de 100.000.000, dando siempre un número de 9 dígitos sin cero inicial:
-
-```bash
-entropy="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')|$(date +%s%N)|$mac|$(cat /proc/sys/kernel/random/boot_id)|$(hostname)"
-hash=$(printf '%s' "$entropy" | sha256sum | cut -d' ' -f1)
-num=$((16#${hash:0:15}))
-printf '%d' $(( num % 900000000 + 100000000 ))
-```
-
-Nota sobre `head -c 32 /dev/urandom`: a diferencia del bug ya conocido en este mismo fichero (`tr | head` cortando la tubería y matando a `tr` con `SIGPIPE` bajo `pipefail`, documentado más arriba), aquí `head` lee un fichero directamente y decide él mismo cuándo parar — no hay ningún proceso aguas arriba al que matar, así que no hace falta el mismo workaround.
-
-El ID generado se persiste en `/var/lib/solwed/.support-id` (antes `.rustdesk-id`) **antes** de intentar el envío al servidor, mismo patrón ya usado para la contraseña — los reintentos del servicio systemd reutilizan el mismo ID ya generado, no generan uno distinto en cada intento. El servidor (`soporte-solwed.py`) no necesitó ningún cambio: ya validaba que `rustdesk_id` fuera numérico de ≥6 dígitos, y un ID de 9 dígitos lo cumple de sobra; se deja el nombre del campo/columna tal cual para no tocar el esquema en producción.
-
-**Probado en local antes de escribir el cambio definitivo:** 200 generaciones con MAC y timestamp idénticos (simulando el caso real que causó el bug) dieron siempre 9 dígitos, siempre dentro de rango, **cero colisiones** — la aleatoriedad real de `/dev/urandom` domina sobre la "sal" determinista añadida.
-
-**Texto del banner de login actualizado** de "ID de soporte" a **"ID de recuperación"** (`set-login-banner.sh`, ahora lee `/var/lib/solwed/.support-id`), para que nadie confunda este ID con el ID real de RustDesk que se usa en una llamada de soporte atendido normal — a partir de ahora son dos IDs distintos y no deben mezclarse.
-
-**Pendiente:** solo escrito y probado en local, todavía no horneado en `custom-root` ni probado con boot-test real en la próxima ISO.
-
-## Logo "ANDUINOS" en Ajustes → Sistema → Acerca de, y versión pasa a Beta 1.0.1 (2026-07-21)
-
-**Bug real reportado por el usuario:** en Ajustes → Sistema → Acerca de, el nombre ya decía "Solwed OS 1.0 (Alpha)" correctamente, pero el logo grande seguía mostrando el wordmark "ANDUINOS".
-
-**Investigación — descartada la hipótesis obvia primero.** El mecanismo genérico `distributor-logo` (el que ya se sabía pendiente desde el icono de ventana de Ubiquity, ver commit de esa época) resultó ser inocente: es solo un engranaje gris genérico del tema Fluent, ni AnduinOS ni Solwed. La causa real, encontrada con `strings` sobre el binario real de `gnome-control-center` del ISO limpio de referencia: el panel "Acerca de" **no usa el mecanismo estándar de os-release/iconos** — tiene la ruta escrita a fuego en el propio binario (parche propio de Ubuntu, no algo que `os-release` controle): `/usr/share/pixmaps/ubuntu-logo-text.svg` y `ubuntu-logo-text-dark.svg` (con sus `.png` hermanos), del paquete `base-files`. AnduinOS había reexportado ese wordmark (metadata de Inkscape confirma `export-batch-name="anduinos"`) cambiando "UBUNTU" por "ANDUINOS", pero mantuvo los nombres de fichero heredados de Ubuntu — de ahí que nadie lo hubiera tocado en el rebrand a Solwed, al no aparecer bajo un nombre "anduinos-algo" obvio.
-
-**Fix — reutilizando el logo ya existente en vez de diseñar uno nuevo.** El repo ya tenía exactamente el asset que hacía falta: `branding/gdm/solwedos-login-logo.png` (el mismo "Solwed OS" + marca "W." amarilla del banner de GDM), en blanco sobre transparente — perfecto tal cual para la variante de tema oscuro. Para la variante de tema claro se generó una copia recoloreada con Pillow: los píxeles blancos (texto) pasan a gris oscuro (`#333333`) preservando el canal alpha original para no perder el antialiasing, dejando el amarillo (`#F5E70A`-ish) intacto en ambas variantes — mismo criterio de recolor-por-píxel que `recolor_svg_icons.py`/`recolor_cursors.py`, aplicado aquí directo sobre el PNG. Los `.svg` correspondientes son un wrapper mínimo con el PNG embebido en base64 (mismo truco ya usado para el icono de ArcMenu) — no existía un SVG vectorial de origen para este wordmark, y las letras del original de Ubuntu/AnduinOS están exportadas como paths, no como texto editable, así que tampoco merecía la pena partir de ahí.
-
-**Registrado en el guardián de marca**, sección "Identidad del sistema (base-files)" de `alternatives-guard/reassert-branding.sh` — nueva entrada que restaura los 4 ficheros (`ubuntu-logo-text{,-dark}.{svg,png}`) si una actualización de `base-files` los revierte, mismo patrón que ya protege `os-release`/`lsb-release` del mismo paquete.
-
-**Versión actualizada en el mismo cambio, decisión del usuario:** con la fase Alpha ya declarada cerrada (commit del polkit no-admin-prompt, Alpha 4.8.1), `PRETTY_NAME` pasa de `"Solwed OS 1.0 (Alpha)"` a **`"Solwed OS Beta 1.0.1"`** (`VERSION`/`VERSION_ID` en `os-release`, `DISTRIB_RELEASE`/`DISTRIB_DESCRIPTION` en `lsb-release`, en paralelo).
-
-**Para futuros cambios de versión:** editar siempre `branding/system-files/etc/os-release`/`lsb-release` **en el repo**, nunca solo el fichero vivo de `custom-root` — es la fuente que usa `reassert-branding.sh` para restaurar, así que un cambio hecho solo ahí se perdería en la siguiente actualización de `base-files`. Después de editar el repo, la forma más simple de aplicarlo es recopiar `branding/system-files/` a `/root/branding-guard-src/system-files/` y volver a ejecutar `scripts/level2-06-branding-guard.sh` en el chroot — es idempotente, aplica el cambio a `custom-root` y actualiza la copia de referencia del guardián en el mismo paso.
-
-**Pendiente:** todo esto está en el repo, probado el renderizado de los SVG/PNG en local (`cairosvg`) pero **no horneado en `custom-root` ni confirmado con boot-test real** — falta que el usuario lo aplique en el chroot y confirme visualmente en Ajustes → Sistema → Acerca de, en modo claro y oscuro.
-
-## El "W." desactualizado en el repo, y un bug real de symlinks en el guardián de marca (2026-07-21)
-
-**Reportado por el usuario tras boot-test real:** la segunda V de la marca "W." salía en amarillo en el logo del Acerca de, cuando debía ser blanca. Comparado pixel a pixel contra `imagenes_Solwed/Logo_Solwed.PNG` (la referencia de siempre): confirmado el bug. Causa: el repo llevaba desde el 13 de julio con el fichero **sin el fix real** de aquella fecha — el fix solo se había aplicado a mano sobre `custom-root`, nunca se copió de vuelta al repo. Encontrado usando el propio `custom-root` como fuente de verdad (`usr/share/plymouth/themes/solwedos/watermark.png` sí tenía el color correcto, nunca protegido por ningún guardián así que nadie lo había revertido) y aplicado a `branding/gdm/solwedos-login-logo.png`, `branding/plymouth/watermark.png` y (con el script ya existente `scripts/fix_w_logo_colors.py`, que usa esa misma referencia) `branding/panel/anduinos-logo.svg` y los 4 logos del Acerca de.
-
-**Segundo bug, más gordo, encontrado al desplegar el fix — el icono de Software/FacturaScripts volvía a azul justo después de arreglarse.** Investigado a fondo: varios "iconos" del tema Fluent-yellow son en realidad **symlinks** a otro fichero real del sistema (`org.gnome.Software.svg` → `gnome-software.svg`, `preferences-system-network.svg` → `network-workgroup.svg`, etc. — 10 en total, más ~60 casos análogos en cursores, auditados y confirmados sin divergencia activa por ahora). El repo los trackeaba con el **nombre del symlink**, no el real — `cp` en `reassert-branding.sh` sigue el symlink y escribe en el fichero real equivocado. Con el repo desincronizado en ese icono concreto, cada ejecución del guardián lo revertía sola. Renombrados los 10 ficheros a su nombre real, borradas las copias con nombre incorrecto, y añadido un aviso en `reassert-branding.sh` para que no se repita.
-
-**Tercer bug, en la propia mecánica de copia — el fix del icono seguía sin aplicarse tras corregir el repo.** `level2-06-branding-guard.sh` usaba `cp -r` sobre un directorio que ya existía de ejecuciones anteriores — eso **mezcla, no sustituye**: los ficheros con nombre incorrecto ya borrados del repo seguían acumulados en `$DEST_ROOT` (`/usr/share/solwed/branding-guard`) y en `/root/branding-guard-src` del host, así que el propio guardián se corregía y se rompía a sí mismo en la misma pasada (por orden alfabético del glob). Fix: `rm -rf "$DEST_ROOT"` antes de copiar, y se le pidió al usuario borrar y recrear `/root/branding-guard-src` entero una vez para limpiar el arrastre. Verificado con una auditoría completa de `branding/` contra `custom-root` — sin más divergencias activas en cursores, panel, GDM/Plymouth, wallpapers ni dconf/gschema/GRUB/os-release.
-
-**Limpieza de disco de paso:** borradas dos ISOs claramente superadas (`SolwedOS-Alpha-4.8.0.iso`, `SolwedOS-Beta-1.0.0.iso`, ~8 GB).
-
-## Widget del tiempo: `is-activated=false` para que se autoconfigure solo (2026-07-21)
-
-Reportado por el usuario: el widget de clima daba "Error!" y no mostraba temperatura pese a haber internet. Causa encontrada leyendo el código fuente real de la extensión (`simple-weather@romanlefler.com`, `extension.js`): si `is-activated` ya viene a `true` (como lo dejó Solwed de fábrica, sin trackear en el repo hasta ahora, para que el widget apareciera activado sin preguntar), la extensión se salta por completo su lógica de primer arranque — que es la que llama a `setFirstTimeConfig()` para detectar la ciudad real por IP (`ipapi.co`) y rellenar `locations`. Con `is-activated=true`, esa lista se queda vacía **para siempre**, en cualquier instalación de Solwed OS, no solo en VMs — de ahí el error sin depender de la conectividad real.
-
-**Fix:** `is-activated=false` en `branding/system-files/etc/dconf/db/anduinos.d/18-simple-weather.conf` (fichero nuevo, tampoco trackeado hasta ahora pese a pertenecer a un paquete real, `gnome-shell-extension-simple-weather` — añadido a `reassert-branding.sh`). El usuario ve una única pantalla de bienvenida de un clic la primera vez, y a partir de ahí la ciudad se detecta sola. Verificado que `ipapi.co` responde con normalidad (200 OK) desde esta misma sesión.
-
-**Confirmado en real por el usuario tras generar la ISO** — sin embargo, en una prueba posterior en un Proxmox concreto siguió fallando; comparado con una ISO anterior que también falló ahí, así que el propio usuario lo atribuye a un problema puntual de ese entorno de red/VM con `ipapi.co`, no del sistema — no hay más acción pendiente por ahora salvo repetir la prueba en otro momento/red.
-
-## `accent-color` — corrección aplicada, pero NO era la causa del cursor de carga en azul en Proxmox (2026-07-21)
-
-**Investigación retomada** de una observación aparcada desde Alpha 2.2.0/2.6.0 (ver más arriba en este changelog): el círculo animado de "cargando" junto al puntero se ve en azul en un Proxmox concreto, sin problema en el Dell — **la dirección está invertida respecto a la observación original** (entonces era Proxmox el que salía bien y Dell el que fallaba), lo que ya de por sí sugiere que no es un patrón estable VM-vs-hardware.
-
-**Hipótesis probada y descartada, con evidencia real:** `org.gnome.desktop.interface accent-color` nunca se fijaba explícitamente en `99-anduinos-defaults.gschema.override` (por defecto vale `'blue'` según el schema real de GNOME) y las extensiones `accent-gtk-theme`/`accent-user-theme`/`accent-icons-theme` (`@brgvos`) sí estaban activadas — parecía encajar. Se añadió `accent-color='yellow'` y se recompiló, confirmado que el valor queda compilado en `gschemas.compiled` real. **El propio usuario lo probó en vivo con `gsettings set` en el Proxmox y el cursor siguió en azul** — y comprobado después con `strings` sobre los binarios reales de `mutter` y `gnome-shell` del ISO de referencia que **ninguno de los dos hace referencia a `accent-color` en ningún sitio** — la hipótesis (heredada de una nota antigua nunca verificada del todo) queda descartada como causa de esto. El ajuste se deja igualmente en el override (correcto para lo que sí lea `accent-color`, no hace daño), pero no es el fix del cursor.
-
-**Investigación pausada hasta la próxima sesión**, a petición del usuario. Confirmado que el círculo es específicamente el que se ve al "cargando" junto al puntero, "y todo lo que tenga que ver con el cursor cuando muestra algo en azul" — no el puntero normal ni los cursores de redimensionar. Próximos pasos ya preparados para retomar: comprobar en el Proxmox real `gsettings get org.gnome.desktop.interface cursor-theme`/`cursor-size`, si la extensión `user-theme` está realmente cargada (`gnome-extensions info`, no solo en la lista de activadas), el tipo de sesión (`$XDG_SESSION_TYPE`) y la GPU virtual (`lspci | grep -i vga`) — para tener evidencia real de esa máquina concreta antes de proponer una tercera teoría.
-
-**Nota 2026-07-22: investigación aparcada indefinidamente a petición del usuario, no es prioritaria ahora mismo.** Se recibieron los diagnósticos pedidos arriba (tema/tamaño de cursor correctos, extensión `user-theme` ACTIVE, sesión Wayland, GPU `virtio-gpu` sin aceleración) — la configuración queda descartada como causa. Antes de proponer una tercera teoría, el siguiente paso identificado es comprobar el color real en disco de los cursores `wait`/`progress`/`left_ptr_watch` (ground truth), no repetirlo hasta que el usuario retome el tema.
-
-## Prototipo de chat de IA (Liquid AI / LFM) — nuevo acceso directo "Asistente Solwed" (2026-07-22)
-
-**Contexto de negocio:** petición del jefe (Iván) de tener un chat de IA para clientes de Solwed, integrado en el propio SolwedOS (no solo un widget web), conectado más adelante a datos por cliente vía MIND. Decisión tomada: inferencia y datos siguen centralizados en un servidor propio (no en cada máquina cliente, cuyo hardware es desconocido/variable) — SolwedOS solo aloja un cliente ligero. Detalle completo del diseño y las pruebas de modelo (LFM2-1.2B-RAG, sin GPU, sin alucinaciones con instrucción explícita, límites de concurrencia) vive fuera de este repo, en el histórico de la conversación del proyecto "Solwed Liquid AI".
-
-**Prototipo desplegado en el servidor `dev` (Tailscale, no producción):** Open WebUI vía Docker, conectado a un Ollama local con el modelo `LiquidAI/LFM2-1.2B-RAG-GGUF`. Tres bugs de infraestructura encontrados y resueltos por el camino: Ollama solo escuchaba en `127.0.0.1` (no accesible desde el contenedor Docker; fix `OLLAMA_HOST=0.0.0.0`), UFW bloqueaba en silencio el tráfico entrante desde `docker0` (política `INPUT` por defecto DROP, sin regla para ese puerto; fix `ufw allow in on docker0 to any port 11434`), y el límite de contexto por defecto de Ollama (4096 tokens) se quedaba corto (fix `OLLAMA_CONTEXT_LENGTH=16384`).
-
-**Nuevo acceso directo preinstalable, `ai-chat-shortcut/`:** `.desktop` que abre Open WebUI en Brave modo app (`brave-browser --app=<url>`), con icono propio — la marca "W." extraída de `imagenes_Solwed/LogoSolwed.svg` (mismo método de inversión de canal alfa ya usado para el logo de GDM/Plymouth) coloreada en amarillo Solwed, referenciada por ruta absoluta en `Icon=` para no depender de la caché de iconos del tema. Horneado en `custom-root/etc/skel/Desktop/` + `usr/share/applications/` + `usr/share/pixmaps/`. **Confirmado con boot-test real por el usuario: "funciona bien".**
-
-**Pendiente antes de producción real:** la URL del acceso directo apunta a la IP de Tailscale del servidor `dev`, solo alcanzable dentro de la red interna de Solwed — un cliente real no podrá llegar ahí. Hará falta un dominio público (mismo patrón que `remoto.erpsolwed.es`) antes de enviar esto a un cliente de verdad. Tampoco hay todavía login del portal de cliente ni conexión a datos por cliente vía MIND (fase deliberadamente aparcada).
-
-## Widget del tiempo: causa real encontrada — `ipapi.co` bloqueado por Cloudflare, no un problema puntual de red (2026-07-24)
-
-**El fix del 21 de julio (`is-activated=false`) no resolvía el fondo del problema.** Se atribuyó entonces a "esa VM/red concreta", pero con un log real (`journalctl --user -b 0`) capturado en el momento del fallo se confirmó la causa: la petición a `https://ipapi.co/json` recibe un **HTTP 403 con la página de reto anti-bot de Cloudflare** ("Just a moment...") en vez de JSON, lo que revienta el parseo (`SyntaxError: Couldn't parse body JSON`) en `libsoup.js` y termina en el `Error: Failed to get My Location.` que se ve en el widget. Ninguna petición HTTP simple puede superar un reto de Cloudflare sin ejecutar JavaScript real, así que este fallo **no es puntual de una red o una VM — es estructural**, y le puede pasar a cualquier instalación de Solwed OS.
-
-**Comprobado que el proveedor alternativo tampoco sirve de salida:** `ipinfo.io` (el otro proveedor automático que soporta la extensión) usa un token gratuito hardcodeado en el propio código open source de la extensión, compartido por todos sus usuarios — ya devuelve `429 Rate limit hit`. El tercer proveedor, Geoclue, el propio código fuente de la extensión lo marca como roto desde que Mozilla cerró el servicio de geolocalización que usaba. **Los 3 proveedores automáticos de "mi ubicación" están rotos**, no solo `ipapi.co`.
-
-**Fix real: dejar de depender de auto-geolocalización.** En vez de perseguir un cuarto proveedor, se precarga una ubicación fija (Madrid) en `branding/system-files/etc/dconf/db/anduinos.d/18-simple-weather.conf`:
-```
-locations=['{"name":"Madrid","lat":40.4168,"lon":-3.7038}']
-main-location-index=0
-```
-Con una ubicación de coordenadas fijas (`isHere=false` en el formato interno de la extensión, confirmado leyendo `src/location.ts`), `latLon()` nunca llama a `getMyLocation()` — el arranque no depende de ningún servicio externo de geolocalización. El cliente puede cambiar la ciudad a mano desde los ajustes de la extensión (el buscador usa Nominatim, no le afecta este bug).
-
-**Pendiente:** solo aplicado en el repo (`branding/system-files/`) — falta hornear en `custom-root` (mismo patrón de siempre: copiar + `dconf update` en el chroot de Cubic) y confirmar con boot-test real que el widget muestra el tiempo de Madrid sin error al primer arranque.
-
-## Nuevo paquete `anduinos-oobe` sin auditar, bloqueado con pin de apt en vez de cortar el repo entero (2026-07-24)
-
-**Reportado por el usuario:** tras una actualización normal en una máquina ya instalada, apareció una ventana emergente de varios pasos para "configurar el sistema" llamada "Configuración de AnduinOS". `grep -l "AnduinOS" /usr/share/applications/*.desktop` en esa máquina identificó `anduinos-oobe.desktop` (junto a `anduinos-exe-runner.desktop`, sin investigar todavía). Es el asistente "Out-Of-Box-Experience" de AnduinOS, estilo Windows 11 — **no tiene nada que ver** con el asistente de bienvenida propio de Solwed OS (`welcome-wizard/`, cerrado el 16/07), son mecanismos totalmente distintos.
-
-**Confirmado que es genuinamente nuevo, no un descuido de auditoría anterior:** no existe ni en la ISO de referencia limpia de AnduinOS 2.0.0 (`reference/anduinos-clean-iso/`) ni en nuestro `custom-root` construido — llegó vía `apt upgrade` desde el repo propio de AnduinOS que seguimos usando para las extensiones de GNOME Shell y el tema (`/etc/apt/sources.list.d/anduinos.sources`, `packages.anduinos.com/artifacts/anduinos/`, suites `resolute-addon`/`resolute-webapps`).
-
-**Decisión tomada tras valorar cortar el repo entero:** el usuario propuso eliminar el repo de AnduinOS del todo para que no llegue nada más sin auditar. Investigado el catálogo real de paquetes que ofrece ese repo (`var/lib/apt/lists/*anduin*Packages`) antes de decidir — **no es solo cosas cosméticas**: de ahí vienen `anduinos-desktop-core`, `anduinos-session`, el tema (`anduinos-fluent-gtk-theme`/`-icon-theme`), Plymouth, y sobre todo casi todas las extensiones de GNOME Shell que ya usamos (`gnome-shell-extension-arcmenu`, `dash-to-panel-anduinos`, `simple-weather`, `blur-my-shell`, `tiling-assistant`, etc.), forzadas con un pin de prioridad **1001** en `/etc/apt/preferences.d/anduinos`. Riesgo real de cortar el repo entero: las extensiones de GNOME Shell son muy sensibles a la versión exacta de `gnome-shell` — si Ubuntu actualiza `gnome-shell` más adelante (eso sigue llegando vía los repos normales de Ubuntu) y las extensiones de AnduinOS quedan congeladas para siempre, podrían romperse (menú de inicio, barra de tareas, tema) sin que AnduinOS pueda seguir arreglándolo.
-
-**Fix elegido: bloquear solo `anduinos-oobe` con un pin de apt, dejar el resto del repo activo.** Nuevo fichero `branding/system-files/etc/apt/preferences.d/solwedos-block-anduinos-oobe.pref`:
-```
-Package: anduinos-oobe
-Pin: release *
-Pin-Priority: -1
-```
-Un pin de prioridad negativa impide que apt instale ese paquete bajo ningún origen, sin tocar el resto de paquetes `anduinos-*`. Al ser un fichero nuevo que ningún paquete posee, no hace falta añadirlo al branding-guard (mismo razonamiento que la regla de polkit del 21/07) — no hay nadie que lo pueda revertir en una actualización.
-
-**Pendiente:** horneado en `custom-root` (para que las próximas ISOs nazcan ya bloqueadas) — dado a los comandos al usuario, no confirmado todavía. Para la máquina ya afectada, se le dieron los comandos para `apt purge anduinos-oobe` + copiar el mismo pin + `apt update`, tampoco confirmado. Sigue sin auditar `anduinos-exe-runner.desktop` (visto en el mismo `grep`, no investigado esta sesión) — revisar si aparece relacionado la próxima vez que se toque este tema.
-
-## Widget del tiempo: `is-activated=true` de nuevo, ahora que ya no hace falta el asistente (2026-07-24)
-
-**Aclaración del usuario tras la sesión de hoy:** no quería desactivar el widget del tiempo (se probó momentáneamente y se revirtió) — quería seguir viéndolo por defecto, pero sin las ventanas emergentes de configuración de primer arranque.
-
-**Encontrado en `src/extension.ts` (`#asyncEnable()`) el mecanismo exacto:** esas ventanas (`showWelcome()`, y en caso de fallo también `showManualConfig()`) solo se disparan si `is-activated=false` — es la puerta de "primer arranque" de la extensión. Con `is-activated=true`, la extensión se salta esa lógica entera y va directa a pintar el tiempo con lo que haya en `locations`. Como ya dejamos `locations` fijado a Madrid (ver entrada de más arriba, mismo día), la combinación correcta es **`is-activated=true` + `locations` ya precargado** — no auto-detecta nada, no llama a ningún proveedor de geolocalización, y no muestra ninguna ventana.
-
-**Fix:** `is-activated=false` → `is-activated=true` en `branding/system-files/etc/dconf/db/anduinos.d/18-simple-weather.conf` (revertido al valor original de AnduinOS, que ya no causa el bug de siempre porque `locations` ya no está vacío). `simple-weather@romanlefler.com` se mantiene en `enabled-extensions` de `99-anduinos-defaults.gschema.override` (se probó quitarlo del todo en esta misma sesión tras un malentendido, y se revirtió). **Pendiente:** hornear ambos ficheros en `custom-root` (mismo patrón: copiar + `glib-compile-schemas` para el override, `dconf update` para el `.conf`) y boot-test real para confirmar que el widget aparece con Madrid sin ninguna ventana.
-
-## GRUB mostrando "AnduinOS" en un sistema con un par de días de actualizaciones — hueco real en el guardián de marca (2026-07-29)
-
-**Reporte del usuario:** en un sistema instalado hacía un par de días, el menú de selección de GRUB (Solwed OS / Advanced options / UEFI Firmware Settings) apareció una vez como "AnduinOS" en vez de "Solwed OS".
-
-**Causa raíz:** `branding/system-files/etc/default/grub` fija `GRUB_DISTRIBUTOR=`( . /etc/os-release && echo ${NAME} )``, evaluado en caliente cada vez que corre `update-grub` — el texto del menú no es estático, depende de lo que diga `NAME=` en `/etc/os-release` en ese instante exacto. `alternatives-guard/reassert-branding.sh` sí restaura `/etc/os-release` si un paquete de AnduinOS (`base-files`, ya señalado como el más peligroso en la entrada del 21/07) lo revierte a "AnduinOS", pero **no marcaba `needs_grub=1` al hacerlo** — solo lo marcaba si el que cambiaba era `/etc/default/grub` en sí. Secuencia real del bug: en una transacción de apt donde `base-files` se actualiza junto a un kernel nuevo, el postinst del kernel corre `update-grub` **durante** la transacción (antes de que termine dpkg), en un momento en que `os-release` puede llevar momentáneamente "AnduinOS" — el `grub.cfg` queda horneado así. El hook `DPkg::Post-Invoke` (nuestro guardián) corre recién al final de toda la transacción: arregla `os-release` de vuelta, pero como no disparaba `update-grub` para ese caso, el `grub.cfg` ya horneado con "AnduinOS" se quedaba así hasta el siguiente evento que regenerase el menú por otra vía.
-
-**Fix:** en `reassert-branding.sh`, la restauración de `/etc/os-release` ahora también marca `needs_grub=1`, igual que la de `/etc/default/grub`. **Aplicado y verificado en `custom-root`** (`/usr/lib/solwed/reassert-branding.sh`, copia idéntica al repo, permisos correctos — no hizo falta recompilar nada más, no cambió ningún fichero de los que guarda el guardián, solo su propia lógica). **Pendiente:** confirmar con una actualización real (con kernel nuevo en la misma transacción que `base-files`) que ya no vuelve a pasar.
-
-## Fondo de escritorio/login/bloqueo — quitado el logo "W." que se superponía al panel de usuario (2026-07-29)
-
-**Reporte del jefe, vía el usuario:** en login y en la pantalla de bloqueo, el nombre de usuario/panel se superpone al logo "W." + "SOLWED.es" del fondo, ilegible.
-
-**Investigado antes de tocar nada:** este GNOME (Ubuntu/AnduinOS) **no tiene clave de configuración independiente para el fondo de bloqueo** (`org/gnome/desktop/screensaver picture-uri` se ignora, confirmado en hardware real el 2026-07-08, ver entrada de esa fecha) — reutiliza literalmente `org/gnome/desktop/background`, la misma imagen que el escritorio. El login GDM sí es un mecanismo aparte (`anduinos-gdm3-wallpaper`), pero como reutiliza el mismo `solwed-oscuro.png`, un cambio en la imagen fuente corrige los tres sitios (escritorio, login, bloqueo) a la vez. Confirmado además que el logo, en la versión actual del repo, está centrado verticalmente (30%–68% de la altura del lienzo) — justo donde caen los paneles de GDM/bloqueo — pese a que una entrada del CHANGELOG del 08/07 documentaba haberlo subido al 80%; no está claro si ese reposicionado se perdió o nunca llegó a este archivo, pero es irrelevante ahora que el logo desaparece del todo.
-
-**Decisión (con el usuario, dos opciones planteadas):** se descartó separar el fondo de bloqueo del de escritorio con una extensión nueva de GNOME Shell (mismo tipo de riesgo de incompatibilidad de versión ya documentado en este proyecto para las extensiones de AnduinOS) — en su lugar, quitar el logo de la imagen compartida, una única fuente de verdad para los tres sitios, sin piezas nuevas que mantener.
-
-**Ejecutado con inpainting por difusión** (no clonar/desenfocar a mano): máscara del logo+wordmark construida por color (brillo + diferencia R-B para pillar también el halo/glow tenue alrededor de las letras, que una máscara solo por brillo dejaba un resto amarillento visible), rellenada por difusión iterativa (propaga solo píxeles reales de alrededor, sin inpainting clásico que arrastraba el tono amarillo del borde de la máscara hacia dentro) y con el grano/textura del fondo reinyectado desde una zona limpia de la propia imagen (si no, el parche quedaba liso y se notaba contra el grano del resto). Verificado con la imagen sobreexpuesta ×3 brillo/contraste para forzar cualquier resto visible — limpio en ambas variantes (`solwed-oscuro.png`, `solwed-claro.png`), sin costura ni tinte de color. El patrón de hexágonos y las franjas diagonales amarillas, fuera de la zona del logo, no se han tocado.
-
-**Actualizado en dos sitios** (mismo contenido, el repo los mantenía duplicados): `branding/wallpapers/solwed-{oscuro,claro}.png` (fuente que usa `scripts/level2-02-gdm-login.sh`) e `imagenes_Solwed/Fondo_SolwedOS_{Oscuro,Claro}.png` (assets originales del usuario).
-
-**Aplicado y verificado en `custom-root`, dos pasos de despliegue, distintos entre sí porque el login usa un `.gresource` compilado:**
-1. PNG nuevos copiados a `custom-root` (terminal normal del host, sin chroot): `/usr/share/backgrounds/solwed/solwed-{oscuro,claro}.png`, idénticos byte a byte al repo — escritorio y pantalla de bloqueo resueltos (leen el PNG directamente).
-2. `scripts/level2-02-gdm-login.sh` re-ejecutado en el chroot de Cubic — `solwedos-theme.gresource` regenerado (fecha posterior a la copia del PNG) y re-registrado con `update-alternatives` (prioridad 160, `manual`). Verificado no solo por fecha: extraído con `gresource extract` el `background.png` real embebido dentro del `.gresource` y confirmado visualmente que ya no lleva el logo.
-
-Boot-test real pendiente de confirmar por el usuario.
-
-## Versión → Beta 1.4.0 (2026-07-29)
-
-Subida tras cerrar el lote de hoy (fix del guardián de marca para GRUB + logo quitado del fondo compartido). `PRETTY_NAME`/`VERSION`/`VERSION_ID` en `branding/system-files/etc/os-release` y `DISTRIB_RELEASE`/`DISTRIB_DESCRIPTION` en `lsb-release`, mismo patrón que el cambio a Beta 1.0.1 del 21/07. **Aplicado y verificado en `custom-root`** (`sudo cp` normal del host, sin chroot, contenido idéntico confirmado). Pendiente de generar la ISO.
-
-## App "Apariencia" revertida a "AnduinOS" en campo — otro hueco del guardián de marca (2026-07-29)
-
-**Reporte del usuario:** en una máquina ya en uso, la app "Apariencia de Solwed OS" del menú de inicio volvió a llamarse "Apariencia de AnduinOS".
-
-**Causa raíz, mismo patrón que el bug de GRUB de hoy:** `anduinos-appearance.desktop` (paquete `anduinos-appearance`) tuvo su `Name=`/`Name[es_ES]=` editado a mano el 2026-07-08 (ver esa entrada), pero **nunca se metió en `reassert-branding.sh`** cuando el guardián se creó el 21/07 — solo se protegió su icono (`anduinos-appearance.svg`), no el `.desktop` con el texto. Confirmado que el paquete no declara este fichero como `conffile` (sin `var/lib/dpkg/info/anduinos-appearance.conffiles`), así que dpkg lo pisa sin avisar en cualquier actualización del paquete — exactamente el mismo mecanismo que ya rompía iconos/cursores/GRUB/os-release. En `custom-root` seguía correcto en el momento de revisarlo (el bug ya había ocurrido en la máquina de campo, no aquí).
-
-**Fix:** `anduinos-appearance.desktop` (ya con el `Name=`/`Name[es_ES]=` correctos) añadido a `branding/system-files/usr/share/applications/`, y nueva entrada en `reassert-branding.sh` que lo restaura si diverge, con `update-desktop-database` condicionado (`needs_desktop_db`) igual que el resto de mecanismos (`needs_icon_cache`/`needs_dconf`/`needs_grub`).
-
-**Pendiente — despliegue completo, no solo copiar el script** (a diferencia del fix de GRUB de hoy, esta vez se añade un fichero nuevo al conjunto que vigila el guardián, hace falta refrescar también `$DEST_ROOT`):
-1. Host: `sudo cp -r branding/system-files /home/aruizb/cubic-projects/SolwedOS/custom-root/root/branding-guard-src/system-files` (sustituye la carpeta entera, para que el `.desktop` nuevo quede dentro) y `sudo cp alternatives-guard/reassert-branding.sh alternatives-guard/99-solwedos-branding-guard /home/aruizb/cubic-projects/SolwedOS/custom-root/root/branding-guard-src/`
-2. Chroot: `bash scripts/level2-06-branding-guard.sh` (hace `rm -rf` + copia limpia de `$DEST_ROOT`, reinstala el script y lo ejecuta una vez — mismo procedimiento que la entrada del 21/07).
-
-Boot-test / actualización real pendiente de confirmar por el usuario que ya no vuelve a pasar.
-
-## Bug real en el propio despliegue del guardián — `$DEST_ROOT` llevaba desde el 21/07 sin refrescarse (2026-07-29)
-
-**Al verificar el fix de "Apariencia" de arriba, la copia de referencia del guardián (`/usr/share/solwed/branding-guard/system-files`, lo que de verdad usa `reassert-branding.sh` para restaurar) resultó estar en `os-release` `VERSION_ID="1.0.1"`** — tres versiones por detrás, sin ninguno de los fixes del 23/24/07 (weather widget, gschema override). El `.desktop` de Apariencia nuevo tampoco había llegado a esa ruta.
-
-**Causa: el comando que se dio para copiar `branding/system-files` al staging de fuera del chroot (`/root/branding-guard-src/system-files`) se ejecutó sobre un directorio que ya existía ahí desde el 21/07** — `cp -r` sobre un destino existente anida (`.../system-files/system-files/...`) en vez de sustituir, mismo tipo de trampa que el bug del 21/07 documentado en `level2-06-branding-guard.sh`, pero un nivel más arriba (en el staging fuera del chroot, no en `$DEST_ROOT`, que ese sí se borra solo). El instalador no puede protegerse de esto por sí mismo porque ese directorio es su propio input.
-
-**Fix — documentado directamente en la cabecera de `scripts/level2-06-branding-guard.sh`:** instrucción explícita de `sudo rm -rf /root/branding-guard-src` antes de cada recopia, no solo la primera vez.
-
-**Pendiente:** re-ejecutar el despliegue completo desde cero (`rm -rf` del staging + recopia de las 4 carpetas + script + hook, luego `level2-06-branding-guard.sh` en el chroot) para que `$DEST_ROOT` quede realmente al día — con esto de paso entran también los tres hallazgos de la entrada siguiente.
-
-## Auditoría de rastros de "AnduinOS" en texto visible al usuario, a petición del usuario (2026-07-29)
-
-Barrido de `.desktop`, selector de fondos, banners de TTY/SSH, polkit y NetworkManager en `custom-root` buscando "anduin" en texto que ve el usuario — **no en identificadores internos** (`Exec=`, `Icon=`, `StartupWMClass=`, IDs de paquete/acción), que se dejan intactos a propósito desde el 08/07 (son identificadores del binario, no marca). Tres hallazgos reales, ninguno cubierto hasta ahora:
-
-1. **`/etc/issue` y `/etc/issue.net` seguían en "AnduinOS 2.0.0"** — el banner de login por TTY física (y el que vería un cliente SSH/serie sin `Banner` propio). Mismo paquete de riesgo ya conocido (`base-files`, sin conffiles, el mismo que `os-release`/`lsb-release`). Nunca se había tocado. Fix: `branding/system-files/etc/{issue,issue.net}` nuevos, "Solwed OS Beta 1.4.0" (recordar actualizar en el próximo cambio de versión, junto con `os-release`/`lsb-release`), añadidos al guardián.
-
-2. **Selector "Fondo de pantalla" de Ajustes (`gnome-background-properties/fluent.xml`, paquete `anduinos-wallpapers`) traía una entrada "AnduinOS"** cuyas imágenes (`aos-light.jpg`/`aos-dark.jpg`, 7680×4320) son literalmente el logo de capas azul de AnduinOS a tamaño wallpaper completo — un cliente podía elegirlo desde Ajustes y quedarse con el logo de la competencia de fondo de escritorio. Fix: entrada eliminada del todo (no solo renombrada) en `branding/system-files/usr/share/gnome-background-properties/fluent.xml`, añadida al guardián. Las imágenes `aos-*.jpg` se quedan sin usar en disco (no merece la pena tocar el paquete solo por esto).
-
-3. **App "Apariencia" (fix del 08/07) solo tradujo `Name=` y `Name[es_ES]=`** — los otros 25 `Name[xx]=` del `.desktop` (alemán, francés, italiano, etc.) seguían diciendo "AnduinOS Aussehen"/"Apparence d'AnduinOS"/etc.
-
-**Revisado y descartado como falso positivo:** `com.anduinos.ufwall.desktop` y su `.policy` de polkit (firewall gráfico) — todo el texto visible (`Name=`/`Comment=`/`Keywords=`, todos los idiomas) ya dice "Firewall"/"Cortafuegos" en origen, "anduin" solo aparece en el ID reverso (`com.anduinos.ufwall`) y la URL del proyecto en GitHub, ambos identificadores internos. `ubiquity.desktop` (instalador) solo referencia el binario `/usr/bin/anduinos-installer` en `Exec=`. `/etc/update-motd.d`, `/etc/machine-info`, `/etc/NetworkManager` — sin rastro.
-
-**Pendiente de desplegar** — mismo lote que la entrada anterior (`branding/system-files` completo ya incluye estos tres ficheros nuevos, entra todo junto en el mismo `rm -rf` + recopia + `level2-06-branding-guard.sh`).
-
-## Los 25 idiomas restantes de "Apariencia" traducidos (2026-07-29)
-
-Decisión del usuario: sí traducirlos, no dejarlos en inglés/AnduinOS. Sustitución literal `AnduinOS` → `SolwedOS` en los 25 `Name[xx]=` (alemán, francés, italiano, japonés, árabe, etc.) — es un sustantivo propio insertado tal cual en cada frase, mismo patrón que ya se había usado en `Name[es_ES]=`, así que no hace falta retraducir la frase entera, solo el nombre de marca. Única excepción gramatical: **francés** — `Apparence d'AnduinOS` se habría convertido en `Apparence d'SolwedOS`, pero la elisión `d'` solo es válida delante de vocal; corregido a mano a `Apparence de SolwedOS`. Verificado que no queda ningún `AnduinOS` (con esa capitalización exacta) en el fichero — `Icon=`/`Exec=`/`StartupWMClass=` se dejan intactos, son identificadores internos.
-
-**Pendiente de desplegar** — mismo lote de `branding/system-files` que las dos entradas anteriores.
-
-## Widget del tiempo: quitado de `enabled-extensions` por defecto, a petición del usuario (2026-07-29)
-
-**Pedido del usuario:** el checkbox "Apariencia → Widgets → Mostrar clima" venía activado de fábrica; que venga desactivado, el cliente lo activa él si quiere.
-
-**No confundir con el trabajo del 21-24/07** sobre este mismo widget (eso arreglaba que, activado, no diera error y no mostrase ventanas de configuración) — esto es distinto, es sobre si arranca activado o no por defecto. Ya se había documentado el mecanismo exacto del checkbox (entrada del `21/07`): lee/escribe únicamente la pertenencia de `simple-weather@romanlefler.com` en `org.gnome.shell enabled-extensions`, nada más.
-
-**Fix:** quitada la entrada `'simple-weather@romanlefler.com'` de la lista `enabled-extensions` en `branding/system-files/usr/share/glib-2.0/schemas/99-anduinos-defaults.gschema.override`. Se deja intacto todo lo demás (`is-activated=true` + `locations` con Madrid en `18-simple-weather.conf`, el parche de `config.js`) — así que si el cliente activa el checkbox más adelante, el widget aparece directo con el tiempo de Madrid, sin ninguna ventana de configuración, igual que el trabajo ya cerrado del 24/07.
-
-**Pendiente de desplegar** — mismo fichero que ya vigila el guardián (`needs_dconf` + `glib-compile-schemas`, ver más arriba), entra en el mismo lote de `branding/system-files`.
-
-## Corrección — el fondo se pasó de quitar, se llevó "SOLWED.es" por delante (2026-07-29)
-
-**Error real, detectado por el usuario tras verificar la ISO 1.4.0 ya generada.** El pedido original (más arriba, "Fondo de escritorio/login/bloqueo — quitado el logo 'W.'...") decía literalmente "sin la W." — pero el inpainting de aquella entrada cubrió el lockup entero (icono "W." + wordmark "SOLWED.es" debajo), no solo el icono. La ISO Beta 1.4.0 ya generada lleva el fondo sin ningún texto de marca visible, no era lo pedido.
-
-**Recuperado el original de antes de tocarlo con `git show HEAD:branding/wallpapers/solwed-{oscuro,claro}.png`** (el commit `c79877d`, previo a esta sesión). Localizado el hueco real entre icono y texto por perfil de brillo fila a fila: el icono "W." termina en `y≈541` (oscuro) / `y≈531` (claro), el wordmark "SOLWED.es" empieza en `y≈609` / `y≈599` — más de 60px de margen entre ambos, cero riesgo de solaparse. Repetido el mismo inpainting por difusión + reinyección de grano de la entrada anterior, esta vez con el rectángulo de máscara acotado a `y 200–570` (los dos casos), muy por debajo de donde empieza el texto — verificado tras el proceso que la máscara real nunca superó `y≈542`/`y≈560`. "SOLWED.es" queda intacto, en su posición original, sin tocar.
-
-**Actualizados los mismos 4 ficheros que la vez anterior** (`branding/wallpapers/solwed-{oscuro,claro}.png`, `imagenes_Solwed/Fondo_SolwedOS_{Oscuro,Claro}.png`).
-
-**Desplegado y verificado en `custom-root`** — PNG idénticos al repo, `.gresource` del login regenerado después de la copia, y el `background.png` real extraído del `.gresource` confirmado con "SOLWED.es" visible. **Decisión del usuario: la ISO se vuelve a generar como Beta 1.4.0** (no sube a 1.4.1) — la 1.4.0 anterior nunca llegó a manos de ningún cliente, es un fix del mismo lote antes de publicarla. Pendiente de que el usuario regenere y se verifique igual que la vez anterior (extracción real del `squashfs`, no solo fecha del fichero).
-
-## Icono "Instalar FacturaScripts" ya no se queda huérfano en el menú tras instalar (2026-07-29)
-
-**Pregunta del usuario antes de la ISO final:** ¿el icono "Instalar FacturaScripts" se elimina tras instalar su contenido? Investigado: **no** — el instalador (`facturascripts-installer/install-facturascripts.sh` → `pkexec install-facturascripts-worker.sh`) solo comprobaba si `/var/www/html/facturas` ya existía para ofrecer abrir el navegador en vez de reinstalar, pero nunca borraba ni ocultaba su propio `.desktop` — se quedaba para siempre en el menú y en el Escritorio, instalado o no. Nunca se había decidido este comportamiento (el CHANGELOG del 09/07 solo documenta que se diseñó "bajo demanda, no preinstalado").
-
-**Decisión: sí, quitarlo.** Es una instalación única de todo el sistema (una sola base de datos/webroot compartidos, no por usuario), así que no tiene sentido seguir ofreciendo "instalar" una vez hecho.
-
-**Fix en `install-facturascripts-worker.sh`** (el worker que ya corre como root vía `pkexec`, al final de una instalación con éxito):
-- `rm -f /usr/share/applications/solwed-facturascripts-instalar.desktop` — quita el lanzador del menú, compartido por todo el sistema.
-- `rm -f "$DESKTOP_DIR/solwed-facturascripts-instalar.desktop"` — quita el icono del Escritorio de quien ejecutó la instalación (`DESKTOP_DIR` ya resuelto antes en el script para el fichero de credenciales).
-- `update-desktop-database` para refrescar la caché.
-
-**Se deja intacto a propósito:** el script real (`/opt/solwed/install-facturascripts.sh`) y la plantilla `/etc/skel/Desktop/solwed-facturascripts-instalar.desktop` — así, si una cuenta nueva se crea *después* de que FacturaScripts ya esté instalado, esa cuenta sigue recibiendo el icono en su propio Escritorio (viene de `/etc/skel`, ajeno a este fix) y, al pulsarlo, la lógica ya existente de `install-facturascripts.sh` (comprobación de `$WEBROOT`) le ofrece abrir el navegador en vez de reinstalar — sigue funcionando como red de seguridad, solo que ahora el sistema no insiste con el icono una vez instalado la primera vez.
-
-**Pendiente de desplegar** — un solo fichero, texto plano, sin chroot:
-```bash
-sudo cp /home/aruizb/SolwedOS/facturascripts-installer/install-facturascripts-worker.sh \
-  /home/aruizb/cubic-projects/SolwedOS/custom-root/opt/solwed/install-facturascripts-worker.sh
-sudo chmod +x /home/aruizb/cubic-projects/SolwedOS/custom-root/opt/solwed/install-facturascripts-worker.sh
-```
-**Confirmado con boot-test real de la ISO 1.5.0:** el icono desaparece del menú tras instalar, tal y como se pedía. El usuario detecta de inmediato la pega que faltaba (ver entrada siguiente).
-
-## FacturaScripts — acceso directo real tras instalar, en vez de dejar al usuario sin nada (2026-07-29)
-
-**Reportado por el usuario en el mismo boot-test:** el icono del instalador se borra bien, pero no queda ningún acceso directo para abrir FacturaScripts después — el usuario tendría que teclear `localhost/facturas` a mano en el navegador cada vez.
-
-**Fix, mismo bloque de `install-facturascripts-worker.sh` que borra el icono del instalador:** en su lugar se crea `solwed-facturascripts.desktop` ("FacturaScripts", `Exec=xdg-open http://localhost/facturas`, mismo comando que ya usaba `install-facturascripts.sh` para abrir el navegador justo después de instalar, para no duplicar mecanismos) — en el menú (`/usr/share/applications/`, compartido por todas las cuentas) y en el Escritorio de quien instaló (`$DESKTOP_DIR`, mismo patrón de `chown`/`chmod` que ya se usa para el fichero de credenciales). Icono genérico `web-browser` (no hay forma de traer el logo real de FacturaScripts sin acceso a internet en este entorno).
-
-**Pendiente de desplegar** — mismo fichero que la entrada anterior:
-```bash
-sudo cp /home/aruizb/SolwedOS/facturascripts-installer/install-facturascripts-worker.sh \
-  /home/aruizb/cubic-projects/SolwedOS/custom-root/opt/solwed/install-facturascripts-worker.sh
-sudo chmod +x /home/aruizb/cubic-projects/SolwedOS/custom-root/opt/solwed/install-facturascripts-worker.sh
-```
-Pendiente de un boot-test real (instalación completa) para confirmar que el nuevo acceso directo aparece y abre el navegador correctamente.
-
-## Versión → Beta 1.5.0 (2026-07-29)
-
-El usuario decide subir a 1.5.0 en vez de regenerar la 1.4.0 (decisión previa), ya con el fix de "Instalar FacturaScripts" añadido al lote. `PRETTY_NAME`/`VERSION`/`VERSION_ID` en `os-release`, `DISTRIB_RELEASE`/`DISTRIB_DESCRIPTION` en `lsb-release`, y esta vez también `etc/issue`/`etc/issue.net` (nuevos desde el hallazgo del guardián de marca de hoy, no existían en el cambio a 1.4.0). Desplegado y verificado en `custom-root`, boot-test real confirmado (icono de instalador desaparece tras instalar) — lleva directamente al hallazgo del acceso directo que falta, ver entrada anterior. Esta versión no llegó a generarse como ISO — superada por la 1.0.0 de la entrada siguiente antes del siguiente Generate.
-
-## Versión → Solwed OS 1.0.0 — se abandona el prefijo "Beta" (2026-07-29)
-
-**Decisión de negocio del usuario.** Deja de ser "Solwed OS Beta X.X.X" — pasa a **"Solwed OS 1.0.0"**, sin "Beta" en ningún sitio. Mismos 4 ficheros que las subidas de versión anteriores: `PRETTY_NAME`/`VERSION`/`VERSION_ID` en `os-release` ("Solwed OS 1.0.0" / "1.0.0" / "1.0.0"), `DISTRIB_RELEASE`/`DISTRIB_DESCRIPTION` en `lsb-release`, `etc/issue`/`etc/issue.net`. `NAME="Solwed OS"` no cambia (ya no llevaba "Beta"), así que `GRUB_DISTRIBUTOR` (que lee `NAME`, no `VERSION`) no se ve afectado. Desplegado y verificado en `custom-root`, ISO `SolwedOS-1.0.0.iso` generada y en pruebas por el usuario.
-
-## Dos manuales nuevos: guía interna de soporte remoto y página de producto para clientes (2026-07-29)
-
-**Investigado el mecanismo real de soporte remoto antes de escribir nada** (no solo `CHANGELOG`/manual técnico viejo, que tienen partes desactualizadas) — dos flujos completamente distintos que no hay que confundir: **Flujo A** (cliente con sesión abierta, RustDesk atendido, ID+contraseña de un solo uso generados por RustDesk) y **Flujo B** (cliente bloqueado fuera de su cuenta, "ID de recuperación" de 9 dígitos propio de Solwed —sin relación con RustDesk desde el 21/07—, consultado por el técnico en `remoto.erpsolwed.es/soporte` con el token de soporte del equipo). Detalle importante encontrado y documentado como aviso: el campo del formulario real de `/soporte` todavía dice "ID de RustDesk" por una etiqueta sin actualizar.
-
-**`manual-soporte-remoto.html`** — guía interna, no distribuir a clientes. Tratamiento utilitario (memo operativo, pensado para consultarse durante una llamada real, no para leerse de principio a fin): triaje de una pregunta, dos tarjetas de flujo con pasos numerados (color frío para el flujo A, cálido para el B), líneas de "guion telefónico" citadas tal cual para leérselas al cliente, tabla comparativa de los dos IDs para no mezclarlos, y aviso de seguridad sobre el token. Tipografía Ubuntu Variable incrustada como `data:` URI (la misma fuente real del sistema, extraída de `/usr/share/fonts/truetype/ubuntu/`), ambos temas (claro/oscuro) cubiertos.
-
-**`solwed-os-producto.html`** — cara al cliente, sin ningún detalle técnico interno (nada de AnduinOS, Cubic, guardián de marca, tokens). Tratamiento editorial (página de producto): hero a pantalla completa con el wallpaper de marca real (`branding/wallpapers/solwed-oscuro.png` original, con el logo "W." completo, comprimido a JPEG para el peso), franja diagonal en CSS que hace eco de las rayas del propio wallpaper, rejilla de características (LibreOffice, FacturaScripts, asistente de IA, Autofirma, WhatsApp Web, copias de seguridad), sección de soporte contada desde el lado del cliente, y cierre con llamada a la acción.
-
-**Bug real encontrado y corregido en el primer manual tras aviso del usuario:** faltaba `<meta charset="UTF-8">` y había una mezcla de entidades HTML (`&aacute;`) con tildes UTF-8 sueltas sin escapar — el navegador interpretaba mal las sueltas. Añadido el charset explícito, corregido en el segundo documento desde el principio.
-
-Publicados como Artifact (privados) y copiados también a `Desktop\Documentación Solwed\` en el equipo del usuario, por la misma razón que `solwed-os-manual.html` en su día: acceso directo sin depender de la sesión de claude.ai. A petición del usuario, ambos ficheros pasan también al repo (raíz, junto a `solwed-os-manual.html`), documentados en `README.md`.
+- El indicador de carga animado junto al puntero se muestra en color azul por defecto, en vez del color de acento, en algunos entornos virtualizados concretos — investigación en pausa, sin causa confirmada.

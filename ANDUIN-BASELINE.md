@@ -1,6 +1,6 @@
 # AnduinOS 2.0.0 — baseline verificado
 
-Hechos comprobados directamente sobre `casper/filesystem.squashfs` de una ISO limpia de **AnduinOS 2.0.0 "Resolute Ringtail"** (`AnduinOS-2.0.0.iso`, extraída en `reference/anduinos-clean-iso/`). Este documento sustituye — no complementa — las suposiciones de `solwed-os-manual.html`: donde haya contradicción, manda este archivo porque está verificado sobre el sistema real, no asumido.
+Hechos comprobados directamente sobre `casper/filesystem.squashfs` de una ISO limpia de **AnduinOS 2.0.0 "Resolute Ringtail"** (`AnduinOS-2.0.0.iso`, extraída en `reference/anduinos-clean-iso/` — no se mantiene en disco de forma permanente, ver `.gitignore` y `README.md`; re-extraer de la ISO original si hace falta volver a verificar algo contra ella). Este documento sustituye — no complementa — las suposiciones de `solwed-os-manual.html`: donde haya contradicción, manda este archivo porque está verificado sobre el sistema real, no asumido.
 
 ## Correcciones clave respecto al manual original
 
