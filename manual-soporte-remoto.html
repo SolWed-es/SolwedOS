@@ -316,6 +316,78 @@
   }
   .warn strong { font-weight: 700; }
 
+  /* ---------- Config block (RustDesk params) ---------- */
+  .setup {
+    margin-top: 40px;
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow);
+    padding: 24px 26px;
+  }
+  .setup h2 {
+    font-family: 'Ubuntu Var';
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0 0 6px;
+    color: var(--ink-soft);
+  }
+  .setup .sub {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0 0 20px;
+    max-width: 68ch;
+  }
+  .param-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin-bottom: 22px;
+  }
+  .param-table th, .param-table td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  .param-table th {
+    font-family: 'Ubuntu Mono Var', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 500;
+    width: 34%;
+  }
+  .setup h3 {
+    font-family: 'Ubuntu Var';
+    font-weight: 700;
+    font-size: 14.5px;
+    margin: 22px 0 4px;
+  }
+  .code-block {
+    font-family: 'Ubuntu Mono Var', ui-monospace, monospace;
+    background: var(--mono-chip);
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    margin: 8px 0 0;
+    white-space: pre;
+  }
+  .setup .note {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 6px;
+  }
+  .setup ol.plain {
+    margin: 8px 0 0;
+    padding-left: 22px;
+    font-size: 14.5px;
+  }
+  .setup ol.plain li { margin-bottom: 6px; }
+
   /* ---------- Reference block ---------- */
   .ref {
     margin-top: 40px;
@@ -532,6 +604,43 @@
     <div class="security-box">
       <strong>El token de soporte no se comparte fuera del equipo.</strong> Con &eacute;l se puede consultar la contrase&ntilde;a de rescate de cualquier equipo Solwed OS dado de alta. Cada equipo se registra una sola vez &mdash; el sistema no permite sobrescribir un registro ya existente.
     </div>
+  </section>
+
+  <section class="setup">
+    <h2>Conectar un RustDesk cualquiera al servidor de Solwed</h2>
+    <p class="sub">Para instalar RustDesk normal (no el de Solwed OS) en tu propio equipo, un port&aacute;til de la oficina, o el PC de un cliente sin Solwed OS, y que use el servidor propio en vez del p&uacute;blico de RustDesk &mdash; misma infraestructura que ya usa cualquier equipo Solwed OS de serie.</p>
+
+    <table class="param-table">
+      <tbody>
+        <tr><th>Servidor ID</th><td><code>remoto.erpsolwed.es</code></td></tr>
+        <tr><th>Servidor de retransmisi&oacute;n (Relay)</th><td><code>remoto.erpsolwed.es</code></td></tr>
+        <tr><th>Clave (Key)</th><td><code>jPMyhXCl14aI1wJBW8fIlADfcv3H1vWgs2NoZXxJAu0=</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>M&eacute;todo recomendado &mdash; desde la propia app</h3>
+    <ol class="plain">
+      <li>Abre RustDesk &rarr; icono de engranaje (Configuraci&oacute;n) &rarr; <strong>Red</strong>.</li>
+      <li>En <strong>ID Server</strong>, escribe <code>remoto.erpsolwed.es</code>.</li>
+      <li>En <strong>Relay Server</strong>, escribe <code>remoto.erpsolwed.es</code>.</li>
+      <li>En <strong>Key</strong>, pega <code>jPMyhXCl14aI1wJBW8fIlADfcv3H1vWgs2NoZXxJAu0=</code>.</li>
+      <li>Aplica y reinicia RustDesk si te lo pide. El ID que muestre a partir de ahora ya pasa por el servidor de Solwed.</li>
+    </ol>
+    <p class="note">Es el m&eacute;todo m&aacute;s fiable en la pr&aacute;ctica &mdash; en pruebas reales de este mismo servidor, rellenar el fichero de configuraci&oacute;n directamente no siempre bastaba por s&iacute; solo la primera vez, mientras que hacerlo desde aqu&iacute; s&iacute; conectaba a la primera.</p>
+
+    <h3>Alternativa &mdash; fichero de configuraci&oacute;n</h3>
+    <p class="note">S&oacute;lo si necesitas dejarlo preconfigurado sin abrir la app (por ejemplo, para varios equipos a la vez). La ruta del fichero cambia seg&uacute;n el sistema:</p>
+    <div class="code-block">[options]
+custom-rendezvous-server = 'remoto.erpsolwed.es'
+relay-server = 'remoto.erpsolwed.es'
+key = 'jPMyhXCl14aI1wJBW8fIlADfcv3H1vWgs2NoZXxJAu0='</div>
+    <table class="param-table" style="margin-top: 14px;">
+      <tbody>
+        <tr><th>Windows</th><td><code>%AppData%\RustDesk\RustDesk2.toml</code></td></tr>
+        <tr><th>Linux</th><td><code>~/.config/rustdesk/RustDesk2.toml</code> &mdash; en min&uacute;sculas, no <code>RustDesk</code> con may&uacute;sculas; esa ruta no la lee el programa.</td></tr>
+        <tr><th>macOS</th><td>Usa el m&eacute;todo de la app (arriba) en vez de un fichero &mdash; m&aacute;s fiable.</td></tr>
+      </tbody>
+    </table>
   </section>
 
   <footer>
