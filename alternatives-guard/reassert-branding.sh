@@ -21,6 +21,7 @@ SRC="/usr/share/solwed/branding-guard"
 needs_icon_cache=0
 needs_dconf=0
 needs_grub=0
+needs_desktop_db=0
 
 restore_if_diff() {
     local src="$1" dst="$2"
@@ -90,10 +91,21 @@ fi
 # por IP vía ipapi.co) y el widget del tiempo queda sin ubicación para
 # siempre, dando "Error!" tenga o no tenga internet. Con false, el usuario
 # ve una única pantalla de bienvenida (un clic) la primera vez y la
-# ubicación se detecta sola.
+# ubicación se detecta sola. Desde 2026-07-23 fija también
+# my-loc-provider='ipapi.co' explícitamente (ver el parche de config.js
+# justo debajo, sin él este valor se ignora igualmente).
 if restore_if_diff "$SRC/system-files/etc/dconf/db/anduinos.d/18-simple-weather.conf" "/etc/dconf/db/anduinos.d/18-simple-weather.conf"; then
     needs_dconf=1
 fi
+# gnome-shell-extension-simple-weather: parche de bug real en la propia
+# extensión (config.js, encontrado 2026-07-23) — su getMyLocationProvider()
+# solo aceptaba los valores 1-2 del enum de 4 valores, así que CUALQUIER
+# my-loc-provider configurado en dconf (incluido el default del schema,
+# ipapi.co=4) caía siempre a ipinfo.io=1, que usa un token compartido por
+# todo el mundo que use esta extensión y da "Failed to get My Location."
+# de forma consistente (token agotado/revocado). Sin este parche, el
+# my-loc-provider='ipapi.co' de arriba no tiene ningún efecto.
+restore_if_diff "$SRC/system-files/usr/share/gnome-shell/extensions/simple-weather@romanlefler.com/config.js" "/usr/share/gnome-shell/extensions/simple-weather@romanlefler.com/config.js" || true
 if restore_if_diff "$SRC/system-files/usr/share/glib-2.0/schemas/99-anduinos-defaults.gschema.override" "/usr/share/glib-2.0/schemas/99-anduinos-defaults.gschema.override"; then
     glib-compile-schemas /usr/share/glib-2.0/schemas/
 fi
@@ -104,8 +116,43 @@ restore_if_diff "$SRC/system-files/etc/gdm3/greeter.dconf-defaults" "/etc/gdm3/g
 /usr/lib/solwed/set-login-banner.sh || true
 
 # --- Identidad del sistema (base-files) ---
-restore_if_diff "$SRC/system-files/etc/os-release" "/etc/os-release" || true
+# os-release alimenta GRUB_DISTRIBUTOR en caliente (ver /etc/default/grub:
+# `( . /etc/os-release && echo ${NAME} )`, evaluado en cada update-grub) ->
+# si se revierte, el grub.cfg ya horneado se queda con "AnduinOS" hasta el
+# próximo update-grub por otra vía. needs_grub=1 aquí cierra ese hueco (bug
+# real detectado 2026-07-29: un sistema con un par de días de actualizaciones
+# mostró "AnduinOS" en el menú de arranque pese a que os-release ya estaba
+# bien).
+if restore_if_diff "$SRC/system-files/etc/os-release" "/etc/os-release"; then
+    needs_grub=1
+fi
 restore_if_diff "$SRC/system-files/etc/lsb-release" "/etc/lsb-release" || true
+# /etc/issue (TTY) y /etc/issue.net (SSH/serial) -- mismo paquete (base-files),
+# mismo riesgo, encontrados sin tocar el 2026-07-29 (aún decían "AnduinOS 2.0.0").
+restore_if_diff "$SRC/system-files/etc/issue" "/etc/issue" || true
+restore_if_diff "$SRC/system-files/etc/issue.net" "/etc/issue.net" || true
+
+# --- Selector de fondos de Ajustes (anduinos-wallpapers) ---
+# fluent.xml lista las entradas del selector "Fondo de pantalla" -- traía una
+# entrada "AnduinOS" (aos-light.jpg/aos-dark.jpg) que es literalmente el
+# logo de capas azul de AnduinOS a tamaño wallpaper. Encontrada sin tocar el
+# 2026-07-29. Quitada la entrada entera (no solo renombrada) -- las imágenes
+# aos-*.jpg se quedan en disco sin usar, no merece la pena borrarlas del
+# paquete solo por esto.
+restore_if_diff "$SRC/system-files/usr/share/gnome-background-properties/fluent.xml" "/usr/share/gnome-background-properties/fluent.xml" || true
+
+# --- App "Apariencia" del menú de inicio (anduinos-appearance) ---
+# Name=/Name[es_ES]= cambiados a mano el 2026-07-08 a "Solwed OS Appearance"/
+# "Apariencia de SolwedOS" -- el paquete anduinos-appearance no declara este
+# .desktop como conffile (sin var/lib/dpkg/info/anduinos-appearance.conffiles),
+# así que dpkg lo revierte sin avisar en cualquier actualización del paquete.
+# Bug real reportado 2026-07-29: una máquina de campo volvió a mostrar
+# "Apariencia de AnduinOS" -- este fichero nunca se había añadido al
+# guardián (solo su icono, ver sección de iconos más arriba), hueco cerrado
+# ahora con la misma mecánica que el resto.
+if restore_if_diff "$SRC/system-files/usr/share/applications/anduinos-appearance.desktop" "/usr/share/applications/anduinos-appearance.desktop"; then
+    needs_desktop_db=1
+fi
 
 # --- Logo de Ajustes -> Sistema -> Acerca de (base-files) ---
 # gnome-control-center tiene la ruta escrita a fuego en el propio binario
@@ -131,4 +178,7 @@ if [ "$needs_dconf" = "1" ]; then
 fi
 if [ "$needs_grub" = "1" ] && command -v update-grub >/dev/null 2>&1; then
     update-grub || true
+fi
+if [ "$needs_desktop_db" = "1" ] && command -v update-desktop-database >/dev/null 2>&1; then
+    update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
 fi

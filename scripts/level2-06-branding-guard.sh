@@ -9,8 +9,18 @@
 #   branding/system-files/     -> /root/branding-guard-src/system-files/
 #   alternatives-guard/reassert-branding.sh       -> /root/branding-guard-src/
 #   alternatives-guard/99-solwedos-branding-guard  -> /root/branding-guard-src/
-# (un solo `sudo cp -r` de cada carpeta de origen basta, ver instrucciones
-# del mensaje de Claude para el comando exacto).
+#
+# IMPORTANTE — `sudo rm -rf /root/branding-guard-src` ANTES de recopiar, cada
+# vez. Bug real encontrado 2026-07-29: si `/root/branding-guard-src/system-files`
+# ya existe de una ejecución anterior, un `cp -r branding/system-files
+# /root/branding-guard-src/system-files` no sustituye — anida el contenido
+# nuevo en `.../system-files/system-files/...` (mismo tipo de trampa de `cp -r`
+# que el bug del 21/07 de más abajo, pero un nivel por encima, en el staging
+# de fuera del chroot en vez de en $DEST_ROOT). Este script no puede
+# protegerse solo de eso porque `$SRC` es su propio input, así que la única
+# forma segura es borrar `/root/branding-guard-src` entero antes de cada
+# `cp -r` nuevo — igual que el motivo por el que `$DEST_ROOT` se borra más
+# abajo.
 #
 # Complementa a level2-05-alternatives-guard.sh (Plymouth/GDM). Este cubre
 # el resto de lo que hemos personalizado y que un paquete de AnduinOS puede

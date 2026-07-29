@@ -80,4 +80,38 @@ EOF
 chown "$ORIG_USER:$ORIG_USER" "$CREDS_FILE"
 chmod 600 "$CREDS_FILE"
 
+# Instalación completada -- ya no tiene sentido ofrecer "Instalar FacturaScripts"
+# en el menú (es una instalación única de todo el sistema, no por usuario). Se
+# quita el lanzador del menú (compartido) y del Escritorio de quien lo ejecutó
+# (personal). El script real (/opt/solwed/install-facturascripts.sh) se deja
+# intacto -- sigue sirviendo de red de seguridad para cualquier copia de
+# /etc/skel/Desktop que llegue a una cuenta nueva después de este punto: al
+# encontrar "$WEBROOT" ya creado, ofrece abrir el navegador en vez de
+# reinstalar.
+rm -f /usr/share/applications/solwed-facturascripts-instalar.desktop
+rm -f "$DESKTOP_DIR/solwed-facturascripts-instalar.desktop"
+
+# ...y en su lugar, un acceso directo real a FacturaScripts (abre
+# directamente la URL ya instalada, sin que el usuario tenga que teclearla).
+# En el menú (compartido, para todas las cuentas) y en el Escritorio de quien
+# instaló. Mismo Exec que ya usa install-facturascripts.sh para abrir el
+# navegador tras instalar, para no tener dos formas distintas de hacer lo mismo.
+cat > /usr/share/applications/solwed-facturascripts.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=FacturaScripts
+Name[es]=FacturaScripts
+Comment=Abrir FacturaScripts (facturación y contabilidad) en el navegador
+Comment[es]=Abrir FacturaScripts (facturación y contabilidad) en el navegador
+Exec=xdg-open http://localhost/facturas
+Icon=web-browser
+Terminal=false
+Categories=Office;Finance;
+EOF
+cp /usr/share/applications/solwed-facturascripts.desktop "$DESKTOP_DIR/solwed-facturascripts.desktop"
+chown "$ORIG_USER:$ORIG_USER" "$DESKTOP_DIR/solwed-facturascripts.desktop"
+chmod +x "$DESKTOP_DIR/solwed-facturascripts.desktop"
+update-desktop-database /usr/share/applications >/dev/null 2>&1 || true
+
 echo "100"; echo "# Listo."
