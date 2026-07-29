@@ -1,6 +1,0 @@
-dpkg -L anduinos-bwrap-hack 
-/.
-test@test-Latitude-5490:~$ cat /usr/bin/bwrap
-#!/bin/sh
-/usr/bin/bwrap.real "$@" 2>/dev/null || true
-
