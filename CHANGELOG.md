@@ -675,3 +675,193 @@ Reportado por el usuario: el widget de clima daba "Error!" y no mostraba tempera
 **Nuevo acceso directo preinstalable, `ai-chat-shortcut/`:** `.desktop` que abre Open WebUI en Brave modo app (`brave-browser --app=<url>`), con icono propio — la marca "W." extraída de `imagenes_Solwed/LogoSolwed.svg` (mismo método de inversión de canal alfa ya usado para el logo de GDM/Plymouth) coloreada en amarillo Solwed, referenciada por ruta absoluta en `Icon=` para no depender de la caché de iconos del tema. Horneado en `custom-root/etc/skel/Desktop/` + `usr/share/applications/` + `usr/share/pixmaps/`. **Confirmado con boot-test real por el usuario: "funciona bien".**
 
 **Pendiente antes de producción real:** la URL del acceso directo apunta a la IP de Tailscale del servidor `dev`, solo alcanzable dentro de la red interna de Solwed — un cliente real no podrá llegar ahí. Hará falta un dominio público (mismo patrón que `remoto.erpsolwed.es`) antes de enviar esto a un cliente de verdad. Tampoco hay todavía login del portal de cliente ni conexión a datos por cliente vía MIND (fase deliberadamente aparcada).
+
+## Widget del tiempo: causa real encontrada — `ipapi.co` bloqueado por Cloudflare, no un problema puntual de red (2026-07-24)
+
+**El fix del 21 de julio (`is-activated=false`) no resolvía el fondo del problema.** Se atribuyó entonces a "esa VM/red concreta", pero con un log real (`journalctl --user -b 0`) capturado en el momento del fallo se confirmó la causa: la petición a `https://ipapi.co/json` recibe un **HTTP 403 con la página de reto anti-bot de Cloudflare** ("Just a moment...") en vez de JSON, lo que revienta el parseo (`SyntaxError: Couldn't parse body JSON`) en `libsoup.js` y termina en el `Error: Failed to get My Location.` que se ve en el widget. Ninguna petición HTTP simple puede superar un reto de Cloudflare sin ejecutar JavaScript real, así que este fallo **no es puntual de una red o una VM — es estructural**, y le puede pasar a cualquier instalación de Solwed OS.
+
+**Comprobado que el proveedor alternativo tampoco sirve de salida:** `ipinfo.io` (el otro proveedor automático que soporta la extensión) usa un token gratuito hardcodeado en el propio código open source de la extensión, compartido por todos sus usuarios — ya devuelve `429 Rate limit hit`. El tercer proveedor, Geoclue, el propio código fuente de la extensión lo marca como roto desde que Mozilla cerró el servicio de geolocalización que usaba. **Los 3 proveedores automáticos de "mi ubicación" están rotos**, no solo `ipapi.co`.
+
+**Fix real: dejar de depender de auto-geolocalización.** En vez de perseguir un cuarto proveedor, se precarga una ubicación fija (Madrid) en `branding/system-files/etc/dconf/db/anduinos.d/18-simple-weather.conf`:
+```
+locations=['{"name":"Madrid","lat":40.4168,"lon":-3.7038}']
+main-location-index=0
+```
+Con una ubicación de coordenadas fijas (`isHere=false` en el formato interno de la extensión, confirmado leyendo `src/location.ts`), `latLon()` nunca llama a `getMyLocation()` — el arranque no depende de ningún servicio externo de geolocalización. El cliente puede cambiar la ciudad a mano desde los ajustes de la extensión (el buscador usa Nominatim, no le afecta este bug).
+
+**Pendiente:** solo aplicado en el repo (`branding/system-files/`) — falta hornear en `custom-root` (mismo patrón de siempre: copiar + `dconf update` en el chroot de Cubic) y confirmar con boot-test real que el widget muestra el tiempo de Madrid sin error al primer arranque.
+
+## Nuevo paquete `anduinos-oobe` sin auditar, bloqueado con pin de apt en vez de cortar el repo entero (2026-07-24)
+
+**Reportado por el usuario:** tras una actualización normal en una máquina ya instalada, apareció una ventana emergente de varios pasos para "configurar el sistema" llamada "Configuración de AnduinOS". `grep -l "AnduinOS" /usr/share/applications/*.desktop` en esa máquina identificó `anduinos-oobe.desktop` (junto a `anduinos-exe-runner.desktop`, sin investigar todavía). Es el asistente "Out-Of-Box-Experience" de AnduinOS, estilo Windows 11 — **no tiene nada que ver** con el asistente de bienvenida propio de Solwed OS (`welcome-wizard/`, cerrado el 16/07), son mecanismos totalmente distintos.
+
+**Confirmado que es genuinamente nuevo, no un descuido de auditoría anterior:** no existe ni en la ISO de referencia limpia de AnduinOS 2.0.0 (`reference/anduinos-clean-iso/`) ni en nuestro `custom-root` construido — llegó vía `apt upgrade` desde el repo propio de AnduinOS que seguimos usando para las extensiones de GNOME Shell y el tema (`/etc/apt/sources.list.d/anduinos.sources`, `packages.anduinos.com/artifacts/anduinos/`, suites `resolute-addon`/`resolute-webapps`).
+
+**Decisión tomada tras valorar cortar el repo entero:** el usuario propuso eliminar el repo de AnduinOS del todo para que no llegue nada más sin auditar. Investigado el catálogo real de paquetes que ofrece ese repo (`var/lib/apt/lists/*anduin*Packages`) antes de decidir — **no es solo cosas cosméticas**: de ahí vienen `anduinos-desktop-core`, `anduinos-session`, el tema (`anduinos-fluent-gtk-theme`/`-icon-theme`), Plymouth, y sobre todo casi todas las extensiones de GNOME Shell que ya usamos (`gnome-shell-extension-arcmenu`, `dash-to-panel-anduinos`, `simple-weather`, `blur-my-shell`, `tiling-assistant`, etc.), forzadas con un pin de prioridad **1001** en `/etc/apt/preferences.d/anduinos`. Riesgo real de cortar el repo entero: las extensiones de GNOME Shell son muy sensibles a la versión exacta de `gnome-shell` — si Ubuntu actualiza `gnome-shell` más adelante (eso sigue llegando vía los repos normales de Ubuntu) y las extensiones de AnduinOS quedan congeladas para siempre, podrían romperse (menú de inicio, barra de tareas, tema) sin que AnduinOS pueda seguir arreglándolo.
+
+**Fix elegido: bloquear solo `anduinos-oobe` con un pin de apt, dejar el resto del repo activo.** Nuevo fichero `branding/system-files/etc/apt/preferences.d/solwedos-block-anduinos-oobe.pref`:
+```
+Package: anduinos-oobe
+Pin: release *
+Pin-Priority: -1
+```
+Un pin de prioridad negativa impide que apt instale ese paquete bajo ningún origen, sin tocar el resto de paquetes `anduinos-*`. Al ser un fichero nuevo que ningún paquete posee, no hace falta añadirlo al branding-guard (mismo razonamiento que la regla de polkit del 21/07) — no hay nadie que lo pueda revertir en una actualización.
+
+**Pendiente:** horneado en `custom-root` (para que las próximas ISOs nazcan ya bloqueadas) — dado a los comandos al usuario, no confirmado todavía. Para la máquina ya afectada, se le dieron los comandos para `apt purge anduinos-oobe` + copiar el mismo pin + `apt update`, tampoco confirmado. Sigue sin auditar `anduinos-exe-runner.desktop` (visto en el mismo `grep`, no investigado esta sesión) — revisar si aparece relacionado la próxima vez que se toque este tema.
+
+## Widget del tiempo: `is-activated=true` de nuevo, ahora que ya no hace falta el asistente (2026-07-24)
+
+**Aclaración del usuario tras la sesión de hoy:** no quería desactivar el widget del tiempo (se probó momentáneamente y se revirtió) — quería seguir viéndolo por defecto, pero sin las ventanas emergentes de configuración de primer arranque.
+
+**Encontrado en `src/extension.ts` (`#asyncEnable()`) el mecanismo exacto:** esas ventanas (`showWelcome()`, y en caso de fallo también `showManualConfig()`) solo se disparan si `is-activated=false` — es la puerta de "primer arranque" de la extensión. Con `is-activated=true`, la extensión se salta esa lógica entera y va directa a pintar el tiempo con lo que haya en `locations`. Como ya dejamos `locations` fijado a Madrid (ver entrada de más arriba, mismo día), la combinación correcta es **`is-activated=true` + `locations` ya precargado** — no auto-detecta nada, no llama a ningún proveedor de geolocalización, y no muestra ninguna ventana.
+
+**Fix:** `is-activated=false` → `is-activated=true` en `branding/system-files/etc/dconf/db/anduinos.d/18-simple-weather.conf` (revertido al valor original de AnduinOS, que ya no causa el bug de siempre porque `locations` ya no está vacío). `simple-weather@romanlefler.com` se mantiene en `enabled-extensions` de `99-anduinos-defaults.gschema.override` (se probó quitarlo del todo en esta misma sesión tras un malentendido, y se revirtió). **Pendiente:** hornear ambos ficheros en `custom-root` (mismo patrón: copiar + `glib-compile-schemas` para el override, `dconf update` para el `.conf`) y boot-test real para confirmar que el widget aparece con Madrid sin ninguna ventana.
+
+## GRUB mostrando "AnduinOS" en un sistema con un par de días de actualizaciones — hueco real en el guardián de marca (2026-07-29)
+
+**Reporte del usuario:** en un sistema instalado hacía un par de días, el menú de selección de GRUB (Solwed OS / Advanced options / UEFI Firmware Settings) apareció una vez como "AnduinOS" en vez de "Solwed OS".
+
+**Causa raíz:** `branding/system-files/etc/default/grub` fija `GRUB_DISTRIBUTOR=`( . /etc/os-release && echo ${NAME} )``, evaluado en caliente cada vez que corre `update-grub` — el texto del menú no es estático, depende de lo que diga `NAME=` en `/etc/os-release` en ese instante exacto. `alternatives-guard/reassert-branding.sh` sí restaura `/etc/os-release` si un paquete de AnduinOS (`base-files`, ya señalado como el más peligroso en la entrada del 21/07) lo revierte a "AnduinOS", pero **no marcaba `needs_grub=1` al hacerlo** — solo lo marcaba si el que cambiaba era `/etc/default/grub` en sí. Secuencia real del bug: en una transacción de apt donde `base-files` se actualiza junto a un kernel nuevo, el postinst del kernel corre `update-grub` **durante** la transacción (antes de que termine dpkg), en un momento en que `os-release` puede llevar momentáneamente "AnduinOS" — el `grub.cfg` queda horneado así. El hook `DPkg::Post-Invoke` (nuestro guardián) corre recién al final de toda la transacción: arregla `os-release` de vuelta, pero como no disparaba `update-grub` para ese caso, el `grub.cfg` ya horneado con "AnduinOS" se quedaba así hasta el siguiente evento que regenerase el menú por otra vía.
+
+**Fix:** en `reassert-branding.sh`, la restauración de `/etc/os-release` ahora también marca `needs_grub=1`, igual que la de `/etc/default/grub`. **Aplicado y verificado en `custom-root`** (`/usr/lib/solwed/reassert-branding.sh`, copia idéntica al repo, permisos correctos — no hizo falta recompilar nada más, no cambió ningún fichero de los que guarda el guardián, solo su propia lógica). **Pendiente:** confirmar con una actualización real (con kernel nuevo en la misma transacción que `base-files`) que ya no vuelve a pasar.
+
+## Fondo de escritorio/login/bloqueo — quitado el logo "W." que se superponía al panel de usuario (2026-07-29)
+
+**Reporte del jefe, vía el usuario:** en login y en la pantalla de bloqueo, el nombre de usuario/panel se superpone al logo "W." + "SOLWED.es" del fondo, ilegible.
+
+**Investigado antes de tocar nada:** este GNOME (Ubuntu/AnduinOS) **no tiene clave de configuración independiente para el fondo de bloqueo** (`org/gnome/desktop/screensaver picture-uri` se ignora, confirmado en hardware real el 2026-07-08, ver entrada de esa fecha) — reutiliza literalmente `org/gnome/desktop/background`, la misma imagen que el escritorio. El login GDM sí es un mecanismo aparte (`anduinos-gdm3-wallpaper`), pero como reutiliza el mismo `solwed-oscuro.png`, un cambio en la imagen fuente corrige los tres sitios (escritorio, login, bloqueo) a la vez. Confirmado además que el logo, en la versión actual del repo, está centrado verticalmente (30%–68% de la altura del lienzo) — justo donde caen los paneles de GDM/bloqueo — pese a que una entrada del CHANGELOG del 08/07 documentaba haberlo subido al 80%; no está claro si ese reposicionado se perdió o nunca llegó a este archivo, pero es irrelevante ahora que el logo desaparece del todo.
+
+**Decisión (con el usuario, dos opciones planteadas):** se descartó separar el fondo de bloqueo del de escritorio con una extensión nueva de GNOME Shell (mismo tipo de riesgo de incompatibilidad de versión ya documentado en este proyecto para las extensiones de AnduinOS) — en su lugar, quitar el logo de la imagen compartida, una única fuente de verdad para los tres sitios, sin piezas nuevas que mantener.
+
+**Ejecutado con inpainting por difusión** (no clonar/desenfocar a mano): máscara del logo+wordmark construida por color (brillo + diferencia R-B para pillar también el halo/glow tenue alrededor de las letras, que una máscara solo por brillo dejaba un resto amarillento visible), rellenada por difusión iterativa (propaga solo píxeles reales de alrededor, sin inpainting clásico que arrastraba el tono amarillo del borde de la máscara hacia dentro) y con el grano/textura del fondo reinyectado desde una zona limpia de la propia imagen (si no, el parche quedaba liso y se notaba contra el grano del resto). Verificado con la imagen sobreexpuesta ×3 brillo/contraste para forzar cualquier resto visible — limpio en ambas variantes (`solwed-oscuro.png`, `solwed-claro.png`), sin costura ni tinte de color. El patrón de hexágonos y las franjas diagonales amarillas, fuera de la zona del logo, no se han tocado.
+
+**Actualizado en dos sitios** (mismo contenido, el repo los mantenía duplicados): `branding/wallpapers/solwed-{oscuro,claro}.png` (fuente que usa `scripts/level2-02-gdm-login.sh`) e `imagenes_Solwed/Fondo_SolwedOS_{Oscuro,Claro}.png` (assets originales del usuario).
+
+**Aplicado y verificado en `custom-root`, dos pasos de despliegue, distintos entre sí porque el login usa un `.gresource` compilado:**
+1. PNG nuevos copiados a `custom-root` (terminal normal del host, sin chroot): `/usr/share/backgrounds/solwed/solwed-{oscuro,claro}.png`, idénticos byte a byte al repo — escritorio y pantalla de bloqueo resueltos (leen el PNG directamente).
+2. `scripts/level2-02-gdm-login.sh` re-ejecutado en el chroot de Cubic — `solwedos-theme.gresource` regenerado (fecha posterior a la copia del PNG) y re-registrado con `update-alternatives` (prioridad 160, `manual`). Verificado no solo por fecha: extraído con `gresource extract` el `background.png` real embebido dentro del `.gresource` y confirmado visualmente que ya no lleva el logo.
+
+Boot-test real pendiente de confirmar por el usuario.
+
+## Versión → Beta 1.4.0 (2026-07-29)
+
+Subida tras cerrar el lote de hoy (fix del guardián de marca para GRUB + logo quitado del fondo compartido). `PRETTY_NAME`/`VERSION`/`VERSION_ID` en `branding/system-files/etc/os-release` y `DISTRIB_RELEASE`/`DISTRIB_DESCRIPTION` en `lsb-release`, mismo patrón que el cambio a Beta 1.0.1 del 21/07. **Aplicado y verificado en `custom-root`** (`sudo cp` normal del host, sin chroot, contenido idéntico confirmado). Pendiente de generar la ISO.
+
+## App "Apariencia" revertida a "AnduinOS" en campo — otro hueco del guardián de marca (2026-07-29)
+
+**Reporte del usuario:** en una máquina ya en uso, la app "Apariencia de Solwed OS" del menú de inicio volvió a llamarse "Apariencia de AnduinOS".
+
+**Causa raíz, mismo patrón que el bug de GRUB de hoy:** `anduinos-appearance.desktop` (paquete `anduinos-appearance`) tuvo su `Name=`/`Name[es_ES]=` editado a mano el 2026-07-08 (ver esa entrada), pero **nunca se metió en `reassert-branding.sh`** cuando el guardián se creó el 21/07 — solo se protegió su icono (`anduinos-appearance.svg`), no el `.desktop` con el texto. Confirmado que el paquete no declara este fichero como `conffile` (sin `var/lib/dpkg/info/anduinos-appearance.conffiles`), así que dpkg lo pisa sin avisar en cualquier actualización del paquete — exactamente el mismo mecanismo que ya rompía iconos/cursores/GRUB/os-release. En `custom-root` seguía correcto en el momento de revisarlo (el bug ya había ocurrido en la máquina de campo, no aquí).
+
+**Fix:** `anduinos-appearance.desktop` (ya con el `Name=`/`Name[es_ES]=` correctos) añadido a `branding/system-files/usr/share/applications/`, y nueva entrada en `reassert-branding.sh` que lo restaura si diverge, con `update-desktop-database` condicionado (`needs_desktop_db`) igual que el resto de mecanismos (`needs_icon_cache`/`needs_dconf`/`needs_grub`).
+
+**Pendiente — despliegue completo, no solo copiar el script** (a diferencia del fix de GRUB de hoy, esta vez se añade un fichero nuevo al conjunto que vigila el guardián, hace falta refrescar también `$DEST_ROOT`):
+1. Host: `sudo cp -r branding/system-files /home/aruizb/cubic-projects/SolwedOS/custom-root/root/branding-guard-src/system-files` (sustituye la carpeta entera, para que el `.desktop` nuevo quede dentro) y `sudo cp alternatives-guard/reassert-branding.sh alternatives-guard/99-solwedos-branding-guard /home/aruizb/cubic-projects/SolwedOS/custom-root/root/branding-guard-src/`
+2. Chroot: `bash scripts/level2-06-branding-guard.sh` (hace `rm -rf` + copia limpia de `$DEST_ROOT`, reinstala el script y lo ejecuta una vez — mismo procedimiento que la entrada del 21/07).
+
+Boot-test / actualización real pendiente de confirmar por el usuario que ya no vuelve a pasar.
+
+## Bug real en el propio despliegue del guardián — `$DEST_ROOT` llevaba desde el 21/07 sin refrescarse (2026-07-29)
+
+**Al verificar el fix de "Apariencia" de arriba, la copia de referencia del guardián (`/usr/share/solwed/branding-guard/system-files`, lo que de verdad usa `reassert-branding.sh` para restaurar) resultó estar en `os-release` `VERSION_ID="1.0.1"`** — tres versiones por detrás, sin ninguno de los fixes del 23/24/07 (weather widget, gschema override). El `.desktop` de Apariencia nuevo tampoco había llegado a esa ruta.
+
+**Causa: el comando que se dio para copiar `branding/system-files` al staging de fuera del chroot (`/root/branding-guard-src/system-files`) se ejecutó sobre un directorio que ya existía ahí desde el 21/07** — `cp -r` sobre un destino existente anida (`.../system-files/system-files/...`) en vez de sustituir, mismo tipo de trampa que el bug del 21/07 documentado en `level2-06-branding-guard.sh`, pero un nivel más arriba (en el staging fuera del chroot, no en `$DEST_ROOT`, que ese sí se borra solo). El instalador no puede protegerse de esto por sí mismo porque ese directorio es su propio input.
+
+**Fix — documentado directamente en la cabecera de `scripts/level2-06-branding-guard.sh`:** instrucción explícita de `sudo rm -rf /root/branding-guard-src` antes de cada recopia, no solo la primera vez.
+
+**Pendiente:** re-ejecutar el despliegue completo desde cero (`rm -rf` del staging + recopia de las 4 carpetas + script + hook, luego `level2-06-branding-guard.sh` en el chroot) para que `$DEST_ROOT` quede realmente al día — con esto de paso entran también los tres hallazgos de la entrada siguiente.
+
+## Auditoría de rastros de "AnduinOS" en texto visible al usuario, a petición del usuario (2026-07-29)
+
+Barrido de `.desktop`, selector de fondos, banners de TTY/SSH, polkit y NetworkManager en `custom-root` buscando "anduin" en texto que ve el usuario — **no en identificadores internos** (`Exec=`, `Icon=`, `StartupWMClass=`, IDs de paquete/acción), que se dejan intactos a propósito desde el 08/07 (son identificadores del binario, no marca). Tres hallazgos reales, ninguno cubierto hasta ahora:
+
+1. **`/etc/issue` y `/etc/issue.net` seguían en "AnduinOS 2.0.0"** — el banner de login por TTY física (y el que vería un cliente SSH/serie sin `Banner` propio). Mismo paquete de riesgo ya conocido (`base-files`, sin conffiles, el mismo que `os-release`/`lsb-release`). Nunca se había tocado. Fix: `branding/system-files/etc/{issue,issue.net}` nuevos, "Solwed OS Beta 1.4.0" (recordar actualizar en el próximo cambio de versión, junto con `os-release`/`lsb-release`), añadidos al guardián.
+
+2. **Selector "Fondo de pantalla" de Ajustes (`gnome-background-properties/fluent.xml`, paquete `anduinos-wallpapers`) traía una entrada "AnduinOS"** cuyas imágenes (`aos-light.jpg`/`aos-dark.jpg`, 7680×4320) son literalmente el logo de capas azul de AnduinOS a tamaño wallpaper completo — un cliente podía elegirlo desde Ajustes y quedarse con el logo de la competencia de fondo de escritorio. Fix: entrada eliminada del todo (no solo renombrada) en `branding/system-files/usr/share/gnome-background-properties/fluent.xml`, añadida al guardián. Las imágenes `aos-*.jpg` se quedan sin usar en disco (no merece la pena tocar el paquete solo por esto).
+
+3. **App "Apariencia" (fix del 08/07) solo tradujo `Name=` y `Name[es_ES]=`** — los otros 25 `Name[xx]=` del `.desktop` (alemán, francés, italiano, etc.) seguían diciendo "AnduinOS Aussehen"/"Apparence d'AnduinOS"/etc.
+
+**Revisado y descartado como falso positivo:** `com.anduinos.ufwall.desktop` y su `.policy` de polkit (firewall gráfico) — todo el texto visible (`Name=`/`Comment=`/`Keywords=`, todos los idiomas) ya dice "Firewall"/"Cortafuegos" en origen, "anduin" solo aparece en el ID reverso (`com.anduinos.ufwall`) y la URL del proyecto en GitHub, ambos identificadores internos. `ubiquity.desktop` (instalador) solo referencia el binario `/usr/bin/anduinos-installer` en `Exec=`. `/etc/update-motd.d`, `/etc/machine-info`, `/etc/NetworkManager` — sin rastro.
+
+**Pendiente de desplegar** — mismo lote que la entrada anterior (`branding/system-files` completo ya incluye estos tres ficheros nuevos, entra todo junto en el mismo `rm -rf` + recopia + `level2-06-branding-guard.sh`).
+
+## Los 25 idiomas restantes de "Apariencia" traducidos (2026-07-29)
+
+Decisión del usuario: sí traducirlos, no dejarlos en inglés/AnduinOS. Sustitución literal `AnduinOS` → `SolwedOS` en los 25 `Name[xx]=` (alemán, francés, italiano, japonés, árabe, etc.) — es un sustantivo propio insertado tal cual en cada frase, mismo patrón que ya se había usado en `Name[es_ES]=`, así que no hace falta retraducir la frase entera, solo el nombre de marca. Única excepción gramatical: **francés** — `Apparence d'AnduinOS` se habría convertido en `Apparence d'SolwedOS`, pero la elisión `d'` solo es válida delante de vocal; corregido a mano a `Apparence de SolwedOS`. Verificado que no queda ningún `AnduinOS` (con esa capitalización exacta) en el fichero — `Icon=`/`Exec=`/`StartupWMClass=` se dejan intactos, son identificadores internos.
+
+**Pendiente de desplegar** — mismo lote de `branding/system-files` que las dos entradas anteriores.
+
+## Widget del tiempo: quitado de `enabled-extensions` por defecto, a petición del usuario (2026-07-29)
+
+**Pedido del usuario:** el checkbox "Apariencia → Widgets → Mostrar clima" venía activado de fábrica; que venga desactivado, el cliente lo activa él si quiere.
+
+**No confundir con el trabajo del 21-24/07** sobre este mismo widget (eso arreglaba que, activado, no diera error y no mostrase ventanas de configuración) — esto es distinto, es sobre si arranca activado o no por defecto. Ya se había documentado el mecanismo exacto del checkbox (entrada del `21/07`): lee/escribe únicamente la pertenencia de `simple-weather@romanlefler.com` en `org.gnome.shell enabled-extensions`, nada más.
+
+**Fix:** quitada la entrada `'simple-weather@romanlefler.com'` de la lista `enabled-extensions` en `branding/system-files/usr/share/glib-2.0/schemas/99-anduinos-defaults.gschema.override`. Se deja intacto todo lo demás (`is-activated=true` + `locations` con Madrid en `18-simple-weather.conf`, el parche de `config.js`) — así que si el cliente activa el checkbox más adelante, el widget aparece directo con el tiempo de Madrid, sin ninguna ventana de configuración, igual que el trabajo ya cerrado del 24/07.
+
+**Pendiente de desplegar** — mismo fichero que ya vigila el guardián (`needs_dconf` + `glib-compile-schemas`, ver más arriba), entra en el mismo lote de `branding/system-files`.
+
+## Corrección — el fondo se pasó de quitar, se llevó "SOLWED.es" por delante (2026-07-29)
+
+**Error real, detectado por el usuario tras verificar la ISO 1.4.0 ya generada.** El pedido original (más arriba, "Fondo de escritorio/login/bloqueo — quitado el logo 'W.'...") decía literalmente "sin la W." — pero el inpainting de aquella entrada cubrió el lockup entero (icono "W." + wordmark "SOLWED.es" debajo), no solo el icono. La ISO Beta 1.4.0 ya generada lleva el fondo sin ningún texto de marca visible, no era lo pedido.
+
+**Recuperado el original de antes de tocarlo con `git show HEAD:branding/wallpapers/solwed-{oscuro,claro}.png`** (el commit `c79877d`, previo a esta sesión). Localizado el hueco real entre icono y texto por perfil de brillo fila a fila: el icono "W." termina en `y≈541` (oscuro) / `y≈531` (claro), el wordmark "SOLWED.es" empieza en `y≈609` / `y≈599` — más de 60px de margen entre ambos, cero riesgo de solaparse. Repetido el mismo inpainting por difusión + reinyección de grano de la entrada anterior, esta vez con el rectángulo de máscara acotado a `y 200–570` (los dos casos), muy por debajo de donde empieza el texto — verificado tras el proceso que la máscara real nunca superó `y≈542`/`y≈560`. "SOLWED.es" queda intacto, en su posición original, sin tocar.
+
+**Actualizados los mismos 4 ficheros que la vez anterior** (`branding/wallpapers/solwed-{oscuro,claro}.png`, `imagenes_Solwed/Fondo_SolwedOS_{Oscuro,Claro}.png`).
+
+**Desplegado y verificado en `custom-root`** — PNG idénticos al repo, `.gresource` del login regenerado después de la copia, y el `background.png` real extraído del `.gresource` confirmado con "SOLWED.es" visible. **Decisión del usuario: la ISO se vuelve a generar como Beta 1.4.0** (no sube a 1.4.1) — la 1.4.0 anterior nunca llegó a manos de ningún cliente, es un fix del mismo lote antes de publicarla. Pendiente de que el usuario regenere y se verifique igual que la vez anterior (extracción real del `squashfs`, no solo fecha del fichero).
+
+## Icono "Instalar FacturaScripts" ya no se queda huérfano en el menú tras instalar (2026-07-29)
+
+**Pregunta del usuario antes de la ISO final:** ¿el icono "Instalar FacturaScripts" se elimina tras instalar su contenido? Investigado: **no** — el instalador (`facturascripts-installer/install-facturascripts.sh` → `pkexec install-facturascripts-worker.sh`) solo comprobaba si `/var/www/html/facturas` ya existía para ofrecer abrir el navegador en vez de reinstalar, pero nunca borraba ni ocultaba su propio `.desktop` — se quedaba para siempre en el menú y en el Escritorio, instalado o no. Nunca se había decidido este comportamiento (el CHANGELOG del 09/07 solo documenta que se diseñó "bajo demanda, no preinstalado").
+
+**Decisión: sí, quitarlo.** Es una instalación única de todo el sistema (una sola base de datos/webroot compartidos, no por usuario), así que no tiene sentido seguir ofreciendo "instalar" una vez hecho.
+
+**Fix en `install-facturascripts-worker.sh`** (el worker que ya corre como root vía `pkexec`, al final de una instalación con éxito):
+- `rm -f /usr/share/applications/solwed-facturascripts-instalar.desktop` — quita el lanzador del menú, compartido por todo el sistema.
+- `rm -f "$DESKTOP_DIR/solwed-facturascripts-instalar.desktop"` — quita el icono del Escritorio de quien ejecutó la instalación (`DESKTOP_DIR` ya resuelto antes en el script para el fichero de credenciales).
+- `update-desktop-database` para refrescar la caché.
+
+**Se deja intacto a propósito:** el script real (`/opt/solwed/install-facturascripts.sh`) y la plantilla `/etc/skel/Desktop/solwed-facturascripts-instalar.desktop` — así, si una cuenta nueva se crea *después* de que FacturaScripts ya esté instalado, esa cuenta sigue recibiendo el icono en su propio Escritorio (viene de `/etc/skel`, ajeno a este fix) y, al pulsarlo, la lógica ya existente de `install-facturascripts.sh` (comprobación de `$WEBROOT`) le ofrece abrir el navegador en vez de reinstalar — sigue funcionando como red de seguridad, solo que ahora el sistema no insiste con el icono una vez instalado la primera vez.
+
+**Pendiente de desplegar** — un solo fichero, texto plano, sin chroot:
+```bash
+sudo cp /home/aruizb/SolwedOS/facturascripts-installer/install-facturascripts-worker.sh \
+  /home/aruizb/cubic-projects/SolwedOS/custom-root/opt/solwed/install-facturascripts-worker.sh
+sudo chmod +x /home/aruizb/cubic-projects/SolwedOS/custom-root/opt/solwed/install-facturascripts-worker.sh
+```
+**Confirmado con boot-test real de la ISO 1.5.0:** el icono desaparece del menú tras instalar, tal y como se pedía. El usuario detecta de inmediato la pega que faltaba (ver entrada siguiente).
+
+## FacturaScripts — acceso directo real tras instalar, en vez de dejar al usuario sin nada (2026-07-29)
+
+**Reportado por el usuario en el mismo boot-test:** el icono del instalador se borra bien, pero no queda ningún acceso directo para abrir FacturaScripts después — el usuario tendría que teclear `localhost/facturas` a mano en el navegador cada vez.
+
+**Fix, mismo bloque de `install-facturascripts-worker.sh` que borra el icono del instalador:** en su lugar se crea `solwed-facturascripts.desktop` ("FacturaScripts", `Exec=xdg-open http://localhost/facturas`, mismo comando que ya usaba `install-facturascripts.sh` para abrir el navegador justo después de instalar, para no duplicar mecanismos) — en el menú (`/usr/share/applications/`, compartido por todas las cuentas) y en el Escritorio de quien instaló (`$DESKTOP_DIR`, mismo patrón de `chown`/`chmod` que ya se usa para el fichero de credenciales). Icono genérico `web-browser` (no hay forma de traer el logo real de FacturaScripts sin acceso a internet en este entorno).
+
+**Pendiente de desplegar** — mismo fichero que la entrada anterior:
+```bash
+sudo cp /home/aruizb/SolwedOS/facturascripts-installer/install-facturascripts-worker.sh \
+  /home/aruizb/cubic-projects/SolwedOS/custom-root/opt/solwed/install-facturascripts-worker.sh
+sudo chmod +x /home/aruizb/cubic-projects/SolwedOS/custom-root/opt/solwed/install-facturascripts-worker.sh
+```
+Pendiente de un boot-test real (instalación completa) para confirmar que el nuevo acceso directo aparece y abre el navegador correctamente.
+
+## Versión → Beta 1.5.0 (2026-07-29)
+
+El usuario decide subir a 1.5.0 en vez de regenerar la 1.4.0 (decisión previa), ya con el fix de "Instalar FacturaScripts" añadido al lote. `PRETTY_NAME`/`VERSION`/`VERSION_ID` en `os-release`, `DISTRIB_RELEASE`/`DISTRIB_DESCRIPTION` en `lsb-release`, y esta vez también `etc/issue`/`etc/issue.net` (nuevos desde el hallazgo del guardián de marca de hoy, no existían en el cambio a 1.4.0). Desplegado y verificado en `custom-root`, boot-test real confirmado (icono de instalador desaparece tras instalar) — lleva directamente al hallazgo del acceso directo que falta, ver entrada anterior. Esta versión no llegó a generarse como ISO — superada por la 1.0.0 de la entrada siguiente antes del siguiente Generate.
+
+## Versión → Solwed OS 1.0.0 — se abandona el prefijo "Beta" (2026-07-29)
+
+**Decisión de negocio del usuario.** Deja de ser "Solwed OS Beta X.X.X" — pasa a **"Solwed OS 1.0.0"**, sin "Beta" en ningún sitio. Mismos 4 ficheros que las subidas de versión anteriores: `PRETTY_NAME`/`VERSION`/`VERSION_ID` en `os-release` ("Solwed OS 1.0.0" / "1.0.0" / "1.0.0"), `DISTRIB_RELEASE`/`DISTRIB_DESCRIPTION` en `lsb-release`, `etc/issue`/`etc/issue.net`. `NAME="Solwed OS"` no cambia (ya no llevaba "Beta"), así que `GRUB_DISTRIBUTOR` (que lee `NAME`, no `VERSION`) no se ve afectado. Desplegado y verificado en `custom-root`, ISO `SolwedOS-1.0.0.iso` generada y en pruebas por el usuario.
+
+## Dos manuales nuevos: guía interna de soporte remoto y página de producto para clientes (2026-07-29)
+
+**Investigado el mecanismo real de soporte remoto antes de escribir nada** (no solo `CHANGELOG`/manual técnico viejo, que tienen partes desactualizadas) — dos flujos completamente distintos que no hay que confundir: **Flujo A** (cliente con sesión abierta, RustDesk atendido, ID+contraseña de un solo uso generados por RustDesk) y **Flujo B** (cliente bloqueado fuera de su cuenta, "ID de recuperación" de 9 dígitos propio de Solwed —sin relación con RustDesk desde el 21/07—, consultado por el técnico en `remoto.erpsolwed.es/soporte` con el token de soporte del equipo). Detalle importante encontrado y documentado como aviso: el campo del formulario real de `/soporte` todavía dice "ID de RustDesk" por una etiqueta sin actualizar.
+
+**`manual-soporte-remoto.html`** — guía interna, no distribuir a clientes. Tratamiento utilitario (memo operativo, pensado para consultarse durante una llamada real, no para leerse de principio a fin): triaje de una pregunta, dos tarjetas de flujo con pasos numerados (color frío para el flujo A, cálido para el B), líneas de "guion telefónico" citadas tal cual para leérselas al cliente, tabla comparativa de los dos IDs para no mezclarlos, y aviso de seguridad sobre el token. Tipografía Ubuntu Variable incrustada como `data:` URI (la misma fuente real del sistema, extraída de `/usr/share/fonts/truetype/ubuntu/`), ambos temas (claro/oscuro) cubiertos.
+
+**`solwed-os-producto.html`** — cara al cliente, sin ningún detalle técnico interno (nada de AnduinOS, Cubic, guardián de marca, tokens). Tratamiento editorial (página de producto): hero a pantalla completa con el wallpaper de marca real (`branding/wallpapers/solwed-oscuro.png` original, con el logo "W." completo, comprimido a JPEG para el peso), franja diagonal en CSS que hace eco de las rayas del propio wallpaper, rejilla de características (LibreOffice, FacturaScripts, asistente de IA, Autofirma, WhatsApp Web, copias de seguridad), sección de soporte contada desde el lado del cliente, y cierre con llamada a la acción.
+
+**Bug real encontrado y corregido en el primer manual tras aviso del usuario:** faltaba `<meta charset="UTF-8">` y había una mezcla de entidades HTML (`&aacute;`) con tildes UTF-8 sueltas sin escapar — el navegador interpretaba mal las sueltas. Añadido el charset explícito, corregido en el segundo documento desde el principio.
+
+Publicados como Artifact (privados) y copiados también a `Desktop\Documentación Solwed\` en el equipo del usuario, por la misma razón que `solwed-os-manual.html` en su día: acceso directo sin depender de la sesión de claude.ai. A petición del usuario, ambos ficheros pasan también al repo (raíz, junto a `solwed-os-manual.html`), documentados en `README.md`.

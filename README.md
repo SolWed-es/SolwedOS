@@ -24,6 +24,8 @@ Ver [`CHANGELOG.md`](CHANGELOG.md) para el detalle de cada cambio y los bugs enc
 ## Estructura del repo
 
 - `solwed-os-manual.html` — manual de referencia, guía completa por niveles con estado real, causas raíz y fixes de cada bug conocido de la plataforma (AnduinOS/Cubic/GNOME).
+- `manual-soporte-remoto.html` — guía interna para el equipo de Solwed: qué hacer cuando un cliente pide soporte remoto (flujo A, RustDesk atendido, y flujo B, contraseña de rescate para un equipo bloqueado). No distribuir a clientes.
+- `solwed-os-producto.html` — página de presentación cara al cliente: qué es Solwed OS, qué trae de serie y cómo funciona el soporte, sin detalle técnico interno.
 - `CLAUDE.md` — guía de trabajo para Claude Code: arquitectura por niveles, flujo de trabajo con Cubic, y el patrón de "guardianes" para sobrevivir a actualizaciones de paquete.
 - `ANDUIN-BASELINE.md` — hechos verificados directamente sobre una ISO limpia de AnduinOS 2.0.0 (dónde vive cada cosa, qué asume mal el manual original).
 - `CHANGELOG.md` — registro cronológico de qué se aplicó en el chroot de Cubic en cada sesión, y por qué.
