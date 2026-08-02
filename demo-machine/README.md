@@ -72,6 +72,8 @@ en el propio equipo, sin internet.
   "llévame a tesorería" desde el Tablero y te lleva. v0.3: pantalla propia en
   Configuración → SolwedAI para elegir proveedor de IA (Ollama local, Solwed AI
   vía la conexión de SolwedConnectFS, o cualquier API compatible OpenAI).
+  v0.5: crea informes del plugin Informes por voz — "hazme una gráfica de
+  ventas por mes" crea el Report real y lo abre.
 - **Informes** v4.22 (oficial de FacturaScripts, clonado en `~/informes` para
   trabajar sobre él): informes comerciales, contables y financieros, gráficos y
   pizarras. Instalado y activado desde la propia UI de Plugins. No está en el
