@@ -57,6 +57,17 @@ Guion de demo sugerido: abrir FacturaScripts (ERP con datos reales) → lanzar
 "Dashboard Contable IA" → enseñar que el análisis lo escribe una IA corriendo
 en el propio equipo, sin internet.
 
+## Plugins de FacturaScripts instalados (2026-08-02)
+
+- **SolwedConnectFS** (clonado en `~/solwedconnect-fs`, repo
+  `SolWed-es/solwedconnect-fs`): tema visual Solwed + conexión al ecosistema.
+  Suscripción sin activar (falta código de app.solwed.es) — el plugin funciona
+  igualmente en modo `plan: none`.
+- **SolwedAI** (desarrollado en `~/solwedai-fs`, repo `SolWed-es/solwedai-fs`):
+  página **Informes → Solwed AI** con chat de IA local sobre las cifras del
+  negocio, gráficas de 12 meses y navegación por lenguaje natural ("ábreme la
+  factura 1"). La empresa de demo se renombró de "E-2944" a "Solwed Demo SL".
+
 ## Deshacer
 
 ```bash
