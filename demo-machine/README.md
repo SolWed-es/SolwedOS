@@ -12,7 +12,8 @@ Aplicado el 2026-08-02 con [`always-on.sh`](always-on.sh):
   (nada puede suspender el equipo).
 - Drop-in de logind `99-solwed-always-on.conf`: cerrar la tapa no suspende.
 - GNOME sin auto-suspensión por inactividad (enchufado y en batería).
-- La pantalla sí se apaga sola por inactividad — es solo la pantalla, no afecta al sistema.
+- Pantalla siempre encendida: sin apagado por inactividad, sin atenuado y sin bloqueo
+  automático de sesión (añadido el 2026-08-02 a petición para la demo).
 
 Para reaplicarlo (o aplicarlo en otra máquina de demo):
 

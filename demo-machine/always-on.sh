@@ -10,7 +10,11 @@ if [[ "${1:-}" == "--user" ]]; then
     # Sin auto-suspensión por inactividad, ni enchufado ni en batería.
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
     gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'
-    echo "GNOME: auto-suspensión desactivada para $USER"
+    # Pantalla siempre encendida: sin apagado por inactividad, sin atenuado, sin bloqueo.
+    gsettings set org.gnome.desktop.session idle-delay 0
+    gsettings set org.gnome.settings-daemon.plugins.power idle-dim false
+    gsettings set org.gnome.desktop.screensaver lock-enabled false
+    echo "GNOME: auto-suspensión, apagado de pantalla y bloqueo desactivados para $USER"
     exit 0
 fi
 
