@@ -67,6 +67,9 @@ en el propio equipo, sin internet.
   página **Informes → Solwed AI** con chat de IA local sobre las cifras del
   negocio, gráficas de 12 meses y navegación por lenguaje natural ("ábreme la
   factura 1"). La empresa de demo se renombró de "E-2944" a "Solwed Demo SL".
+  v0.2: chat flotante en el propio Tablero y router de pantallas híbrido
+  (léxico + IA local) sobre el catálogo completo de la tabla `pages` — pide
+  "llévame a tesorería" desde el Tablero y te lleva.
 - **Informes** v4.22 (oficial de FacturaScripts, clonado en `~/informes` para
   trabajar sobre él): informes comerciales, contables y financieros, gráficos y
   pizarras. Instalado y activado desde la propia UI de Plugins. No está en el
