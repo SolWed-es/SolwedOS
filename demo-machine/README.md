@@ -73,7 +73,10 @@ en el propio equipo, sin internet.
   Configuración → SolwedAI para elegir proveedor de IA (Ollama local, Solwed AI
   vía la conexión de SolwedConnectFS, o cualquier API compatible OpenAI).
   v0.5: crea informes del plugin Informes por voz — "hazme una gráfica de
-  ventas por mes" crea el Report real y lo abre.
+  ventas por mes" crea el Report real y lo abre. v0.6: filtros complejos
+  (fechas, trimestres, cliente/proveedor por nombre, cobradas/pendientes,
+  importes) y respuestas de negocio calculadas por SQL con validador
+  anti-imprecisiones para la IA generativa.
 - **Informes** v4.22 (oficial de FacturaScripts, clonado en `~/informes` para
   trabajar sobre él): informes comerciales, contables y financieros, gráficos y
   pizarras. Instalado y activado desde la propia UI de Plugins. No está en el
