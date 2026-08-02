@@ -70,8 +70,8 @@ en el propio equipo, sin internet.
   v0.2: chat flotante en el propio Tablero y router de pantallas híbrido
   (léxico + IA local) sobre el catálogo completo de la tabla `pages` — pide
   "llévame a tesorería" desde el Tablero y te lleva. v0.3: pantalla propia en
-  Configuración → SolwedAI para elegir proveedor de IA (Ollama local, Claude
-  vía API de Anthropic, o API externa compatible OpenAI).
+  Configuración → SolwedAI para elegir proveedor de IA (Ollama local, Solwed AI
+  vía la conexión de SolwedConnectFS, o cualquier API compatible OpenAI).
 - **Informes** v4.22 (oficial de FacturaScripts, clonado en `~/informes` para
   trabajar sobre él): informes comerciales, contables y financieros, gráficos y
   pizarras. Instalado y activado desde la propia UI de Plugins. No está en el
