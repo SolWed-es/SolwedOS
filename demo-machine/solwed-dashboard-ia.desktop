@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Dashboard Contable IA
+Name[es]=Dashboard Contable IA
+Comment=Dashboard de FacturaScripts con análisis de la IA local (Liquid AI)
+Comment[es]=Dashboard de FacturaScripts con análisis de la IA local (Liquid AI)
+Exec=bash -c 'php /home/test/SolwedOS/demo-machine/dashboard-contable.php && xdg-open "$HOME/Dashboard-Contable.html"'
+Icon=solwed-asistente-ia
+Terminal=false
+Categories=Office;Finance;

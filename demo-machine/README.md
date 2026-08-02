@@ -31,6 +31,32 @@ desde el SO:
 2. **Power Management → AC Behavior** → activar **Wake on AC**.
 3. **Apply → Exit**.
 
+## IA local (Liquid AI) + FacturaScripts + dashboard contable
+
+Montado el 2026-08-02:
+
+- **Ollama** instalado como servicio (API en `127.0.0.1:11434`) con el modelo
+  **LFM2.5-1.2B-Instruct de Liquid AI** (730 MB, elegido para los 8 GB de RAM;
+  responde en ~6 s por frase en CPU). Alias del modelo: `solwed-ai`
+  (`ollama run solwed-ai`). Pendiente: al ampliar RAM a 16-24 GB (zócalo DIMM B
+  libre), pasar a `LFM2.5-8B-A1B` como modelo principal.
+- **FacturaScripts** operativo en `http://localhost/facturas` (admin /
+  SolwedDemo2026). La instalación web falló a medias por un bug del instalador
+  (config.php truncado); se completó a mano. Datos de demo cargados con
+  [`seed-facturascripts-demo.php`](seed-facturascripts-demo.php): 10 clientes,
+  4 proveedores y 12 meses de facturas (77 ventas, 39 compras) con tendencia
+  creciente y mezcla de cobrado/pendiente.
+- **Dashboard contable con IA**: [`dashboard-contable.php`](dashboard-contable.php)
+  consulta MySQL con SQL fijo, genera un HTML autocontenido (offline, modo
+  claro/oscuro, gráficas SVG con tooltips) y pide al LFM local el análisis en
+  español de las cifras. Salida: `~/Dashboard-Contable.html`. Lanzador de menú:
+  [`solwed-dashboard-ia.desktop`](solwed-dashboard-ia.desktop) ("Dashboard
+  Contable IA"), instalado en `~/.local/share/applications/`.
+
+Guion de demo sugerido: abrir FacturaScripts (ERP con datos reales) → lanzar
+"Dashboard Contable IA" → enseñar que el análisis lo escribe una IA corriendo
+en el propio equipo, sin internet.
+
 ## Deshacer
 
 ```bash
