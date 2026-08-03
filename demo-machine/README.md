@@ -63,7 +63,9 @@ en el propio equipo, sin internet.
   `SolWed-es/solwedconnect-fs`): tema visual Solwed + conexión al ecosistema.
   Suscripción sin activar (falta código de app.solwed.es) — el plugin funciona
   igualmente en modo `plan: none`.
-- **SolwedAI** (desarrollado en `~/solwedai-fs`, repo `SolWed-es/solwedai-fs`):
+- **SolwedAI** (desarrollo en `~/SolwedPlugins-container/plugins/SolwedAI`,
+  monorepo `SolWed-es/SolwedPlugins-container`; el antiguo repo solwedai-fs
+  quedó archivado con las releases 0.5 y 0.6):
   página **Informes → Solwed AI** con chat de IA local sobre las cifras del
   negocio, gráficas de 12 meses y navegación por lenguaje natural ("ábreme la
   factura 1"). La empresa de demo se renombró de "E-2944" a "Solwed Demo SL".
