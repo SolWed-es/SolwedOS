@@ -30,6 +30,22 @@ $comprasMes = $q("SELECT DATE_FORMAT(fecha,'%Y-%m') mes, SUM(total) total, SUM(t
 $topClientes = $q("SELECT nombrecliente nombre, SUM(total) total
     FROM facturascli GROUP BY codcliente, nombrecliente ORDER BY total DESC LIMIT 5");
 
+// --- deudores: top 5 por importe pendiente + aging de la deuda ---
+$topDeudores = $q("SELECT c.nombre nombre, SUM(r.importe) importe
+    FROM recibospagoscli r
+    JOIN clientes c ON c.codcliente = r.codcliente
+    WHERE r.pagado = 0
+    GROUP BY r.codcliente, c.nombre ORDER BY importe DESC LIMIT 5");
+$recibosPendientes = $q("SELECT vencimiento, importe FROM recibospagoscli WHERE pagado = 0");
+
+// --- margen por producto: ventas, beneficio y margen % (últimos 12 meses) ---
+$margenProducto = $q("SELECT l.referencia referencia, MIN(l.descripcion) descripcion,
+        SUM(l.pvptotal) ventas, SUM(l.pvptotal - l.coste * l.cantidad) beneficio
+    FROM lineasfacturascli l
+    JOIN facturascli f ON f.idfactura = l.idfactura
+    WHERE l.referencia IS NOT NULL AND f.fecha >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+    GROUP BY l.referencia ORDER BY beneficio DESC");
+
 $compasPorMes = array_column($comprasMes, null, 'mes');
 $meses = array_column($ventasMes, 'mes');
 
@@ -47,6 +63,36 @@ $mesCorto = function (string $ym): string {
         '07' => 'jul', '08' => 'ago', '09' => 'sep', '10' => 'oct', '11' => 'nov', '12' => 'dic'];
     return $n[substr($ym, 5, 2)] . ' ' . substr($ym, 2, 2);
 };
+
+// --- proyección de cierre de año por "run-rate" (facturación del año en curso) ---
+$anioActual = (int)date('Y');
+$mesActual = (int)date('n');
+$ytdRow = $q("SELECT COALESCE(SUM(total),0) t FROM facturascli WHERE fecha >= '$anioActual-01-01' AND fecha <= CURDATE()");
+$ytd = (float)($ytdRow[0]['t'] ?? 0);
+$proyeccionAnual = $mesActual > 0 ? $ytd / $mesActual * 12 : $ytd;
+
+// --- aging de la deuda: recibos pendientes agrupados por antigüedad de vencimiento ---
+$agingTramos = [
+    'al_dia' => ['etiqueta' => 'Al día', 'importe' => 0.0, 'n' => 0],
+    'd1_30' => ['etiqueta' => '1-30 días vencido', 'importe' => 0.0, 'n' => 0],
+    'd31_60' => ['etiqueta' => '31-60 días vencido', 'importe' => 0.0, 'n' => 0],
+    'd60' => ['etiqueta' => '+60 días vencido', 'importe' => 0.0, 'n' => 0],
+];
+$hoyTs = strtotime(date('Y-m-d'));
+foreach ($recibosPendientes as $r) {
+    $venc = !empty($r['vencimiento']) ? strtotime((string)$r['vencimiento']) : $hoyTs;
+    $dias = (int)round(($hoyTs - $venc) / 86400);
+    $clave = $dias <= 0 ? 'al_dia' : ($dias <= 30 ? 'd1_30' : ($dias <= 60 ? 'd31_60' : 'd60'));
+    $agingTramos[$clave]['importe'] += (float)$r['importe'];
+    $agingTramos[$clave]['n']++;
+}
+$partesAging = [];
+foreach ($agingTramos as $t) {
+    if ($t['n'] > 0) {
+        $partesAging[] = $t['etiqueta'] . ': ' . $fmt($t['importe']) . ' (' . $t['n'] . ')';
+    }
+}
+$agingTexto = implode(' · ', $partesAging);
 
 // --- análisis de la IA local ---
 // Hechos ya digeridos (no la tabla cruda): así la IA no puede asociar una
@@ -79,6 +125,10 @@ $parrafoCifras = sprintf(
     $fmt((float)$primero['total']), $mesCorto($primero['mes']),
     $fmt((float)$ultimo['total']), $mesCorto($ultimo['mes']),
     $fmt($pendiente), $fmt($ivaRepercutido - $ivaSoportado)
+);
+$parrafoCifras .= sprintf(
+    ' Llevas %s facturados en %d; a este ritmo cerrarías el año en ~%s (estimación por ritmo actual).',
+    $fmt($ytd), $anioActual, $fmt($proyeccionAnual)
 );
 
 $prompt = "Eres el asesor contable de una pyme española.\n\n" . $hechos
@@ -242,6 +292,27 @@ foreach ($ventasMes as $v) {
         . '</td><td>' . $fmt((float)$c) . '</td></tr>';
 }
 
+// --- tabla de deudores ---
+$filasDeudores = '';
+foreach ($topDeudores as $d) {
+    $filasDeudores .= '<tr><td>' . htmlspecialchars((string)$d['nombre'], ENT_QUOTES) . '</td><td>'
+        . $fmt((float)$d['importe']) . '</td></tr>';
+}
+if ($filasDeudores === '') {
+    $filasDeudores = '<tr><td colspan="2">Sin deuda pendiente.</td></tr>';
+}
+
+// --- tabla de margen por producto ---
+$filasMargen = '';
+foreach ($margenProducto as $m) {
+    $margenPct = $m['ventas'] > 0 ? round(100 * $m['beneficio'] / $m['ventas']) : 0;
+    $filasMargen .= '<tr><td>' . htmlspecialchars((string)$m['descripcion'], ENT_QUOTES) . '</td><td>'
+        . $fmt((float)$m['ventas']) . '</td><td>' . $fmt((float)$m['beneficio']) . '</td><td>' . $margenPct . '%</td></tr>';
+}
+if ($filasMargen === '') {
+    $filasMargen = '<tr><td colspan="4">Sin líneas de venta con producto asociado.</td></tr>';
+}
+
 $analisisHtml = '';
 foreach (preg_split('/\n\s*\n/', $analisis) as $p) {
     $analisisHtml .= '<p>' . htmlspecialchars(trim($p), ENT_QUOTES) . '</p>';
@@ -369,6 +440,25 @@ $html = <<<HTML
     <h2>Top 5 clientes por facturación</h2>
     <div class="cap">Últimos 12 meses (€)</div>
     $chart3
+  </div>
+
+  <div class="card">
+    <h2>Deudores</h2>
+    <div class="cap">Top 5 clientes por importe pendiente de cobro</div>
+    <table>
+      <thead><tr><th>Cliente</th><th>Pendiente</th></tr></thead>
+      <tbody>$filasDeudores</tbody>
+    </table>
+    <div class="cap" style="margin-top:10px">Aging de la deuda: {$agingTexto}</div>
+  </div>
+
+  <div class="card">
+    <h2>Margen por producto</h2>
+    <div class="cap">Últimos 12 meses: ventas, beneficio y margen (%)</div>
+    <table>
+      <thead><tr><th>Producto</th><th>Ventas</th><th>Beneficio</th><th>Margen</th></tr></thead>
+      <tbody>$filasMargen</tbody>
+    </table>
   </div>
 
   <div class="card">
