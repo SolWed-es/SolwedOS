@@ -91,6 +91,28 @@ en el propio equipo, sin internet.
   que además cargan sus datos iniciales. No está en el
   catálogo de la forja (SolwedPlugins-container) — se decidió no añadirlo.
 
+## Touchpad en modo PS/2 (2026-08-03)
+
+El touchpad ALPS del Latitude 5490 (DELL0816 044E:121F, por I2C) reporta saltos
+de coordenadas y contactos fantasma; libinput descarta ese movimiento como
+protección (`kernel bug: Touch jump detected and discarded` en el journal) y el
+cursor solo se movía con dos dedos. Descartados: configuración de GNOME (ok),
+calibración de ejes (ok, 100×53 mm), BIOS (1.33.0, sin firmware nuevo en fwupd)
+y ruido eléctrico del cargador (falla igual con batería).
+
+Aplicado con [`touchpad-ps2-fallback.sh`](touchpad-ps2-fallback.sh):
+
+- `i2c_hid_acpi` en blacklist (`/etc/modprobe.d/blacklist-i2c-hid-touchpad.conf`)
+  → el touchpad pasa al driver PS/2 ALPS de `psmouse`, estable en esta familia.
+- `i8042.nopnp` en `GRUB_CMDLINE_LINUX_DEFAULT`, porque la BIOS declara el
+  puerto AUX PS/2 desactivado cuando espera modo I2C y sin el parámetro el
+  kernel ni lo sondea.
+- El mismo parámetro añadido a la copia del guardián de branding
+  (`/usr/share/solwed/branding-guard/system-files/etc/default/grub`) — si no,
+  el guardián lo revertiría en la siguiente transacción de apt.
+
+Requiere reiniciar. Revertir: `pkexec bash demo-machine/touchpad-ps2-fallback.sh --revert`.
+
 ## Deshacer
 
 ```bash
