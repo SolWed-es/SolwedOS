@@ -82,11 +82,11 @@ en el propio equipo, sin internet.
 - **Informes** v4.22 (oficial de FacturaScripts, clonado en `~/informes` para
   trabajar sobre él): informes comerciales, contables y financieros, gráficos y
   pizarras. Instalado y activado desde la propia UI de Plugins. Sus gráficas
-  (ApexCharts) no venían en el clon de git: se instaló a mano. Las tablas
+  (ApexCharts) no venían en el clon de git: se instaló a mano
+  node_modules/apexcharts/dist/apexcharts.min.js en el plugin. Las tablas
   provincias/ciudades no existían (aviso rojo "no encontrada" en los filtros
   de los listados): se crearon instanciando los modelos Provincia y Ciudad,
-  que además cargan sus datos iniciales. Se instaló a mano
-  node_modules/apexcharts/dist/apexcharts.min.js en el plugin. No está en el
+  que además cargan sus datos iniciales. No está en el
   catálogo de la forja (SolwedPlugins-container) — se decidió no añadirlo.
 
 ## Deshacer
