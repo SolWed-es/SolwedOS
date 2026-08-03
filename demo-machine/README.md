@@ -76,10 +76,14 @@ en el propio equipo, sin internet.
   ventas por mes" crea el Report real y lo abre. v0.6: filtros complejos
   (fechas, trimestres, cliente/proveedor por nombre, cobradas/pendientes,
   importes) y respuestas de negocio calculadas por SQL con validador
-  anti-imprecisiones para la IA generativa.
+  anti-imprecisiones para la IA generativa. v0.8: botón Imprimir PDF y
+  visor 3D (ECharts empaquetado) en cada informe; publicado en la forja
+  (SolwedPlugins-container, catálogo con 12 plugins).
 - **Informes** v4.22 (oficial de FacturaScripts, clonado en `~/informes` para
   trabajar sobre él): informes comerciales, contables y financieros, gráficos y
-  pizarras. Instalado y activado desde la propia UI de Plugins. No está en el
+  pizarras. Instalado y activado desde la propia UI de Plugins. Sus gráficas
+  (ApexCharts) no venían en el clon de git: se instaló a mano
+  node_modules/apexcharts/dist/apexcharts.min.js en el plugin. No está en el
   catálogo de la forja (SolwedPlugins-container) — se decidió no añadirlo.
 
 ## Deshacer
