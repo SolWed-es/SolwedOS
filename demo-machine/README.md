@@ -113,6 +113,16 @@ Aplicado con [`touchpad-ps2-fallback.sh`](touchpad-ps2-fallback.sh):
 
 Requiere reiniciar. Revertir: `pkexec bash demo-machine/touchpad-ps2-fallback.sh --revert`.
 
+Hallazgo posterior: el fallo es un **estado glitcheado del firmware**, no permanente —
+recargar el driver lo reinicializa y el touchpad vuelve a funcionar con un dedo
+sin reiniciar (`pkexec modprobe -r i2c_hid_acpi && pkexec modprobe i2c_hid_acpi`).
+Útil como arreglo de emergencia si algún día se revierte el modo PS/2.
+
+Nota: si se reinstala el guardián de branding (`scripts/level2-06-branding-guard.sh`),
+sus copias conocidas vuelven a las del repo (sin `i8042.nopnp`, que es específico
+de este portátil y no debe ir en la ISO) — rerun del script de arriba para
+volver a parchearlas.
+
 ## Deshacer
 
 ```bash
