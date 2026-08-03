@@ -81,6 +81,18 @@ en el propio equipo, sin internet.
   anti-imprecisiones para la IA generativa. v0.8: botón Imprimir PDF y
   visor 3D (ECharts empaquetado) en cada informe; publicado en la forja
   (SolwedPlugins-container, catálogo con 12 plugins).
+- **PlantillasPDF** v6.71 (2026-08-03): plugin de pago del marketplace de
+  FacturaScripts, instalado desde el catálogo de `api.solwed.es/plugins` (el
+  store que usa SolwedConnectFS). Al activarlo sustituye el exportador PDF del
+  núcleo: facturas, presupuestos, albaranes y listados salen por sus plantillas
+  (Template1, color corporativo #2770CA). El botón "Imprimir PDF" de los
+  informes de SolwedAI genera ahora un PDF real con ese mismo branding
+  (color, empresa, logo y texto final leídos de la config de PlantillasPDF)
+  usando Brave headless en el servidor — ver `Lib/PdfPrinter.php` del plugin
+  y [`apache-pdf-jit.sh`](apache-pdf-jit.sh), un drop-in de systemd necesario
+  porque el Apache endurecido de Solwed OS trae `MemoryDenyWriteExecute=yes`,
+  que bloqueaba el JIT de V8 (Chromium) y de paso el JIT de PCRE de PHP en
+  todo FacturaScripts. Revertir: `pkexec bash demo-machine/apache-pdf-jit.sh --revert`.
 - **Informes** v4.22 (oficial de FacturaScripts, clonado en `~/informes` para
   trabajar sobre él): informes comerciales, contables y financieros, gráficos y
   pizarras. Instalado y activado desde la propia UI de Plugins. Sus gráficas
