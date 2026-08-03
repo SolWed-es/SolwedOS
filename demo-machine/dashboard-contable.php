@@ -49,37 +49,79 @@ $mesCorto = function (string $ym): string {
 };
 
 // --- análisis de la IA local ---
-$resumenMeses = '';
-foreach ($ventasMes as $v) {
-    $c = $compasPorMes[$v['mes']]['total'] ?? 0;
-    $resumenMeses .= sprintf("%s: ventas %d €, cobrado %d €, gastos %d €\n",
-        $v['mes'], $v['total'], $v['cobrado'], $c);
-}
-$prompt = "Eres el asesor contable de una pyme española. Con estas cifras de los últimos 12 meses:\n\n"
-    . $resumenMeses
-    . sprintf("\nTotales: facturación %d €, gastos %d €, pendiente de cobro %d €, IVA repercutido %d €, IVA soportado %d €.\n", $totVentas, $totCompras, $pendiente, $ivaRepercutido, $ivaSoportado)
-    . "\nEscribe un análisis breve en español con exactamente 3 párrafos cortos: 1) evolución del negocio, 2) el principal riesgo que ves en las cifras, 3) una recomendación concreta. Sin saludos ni despedidas.";
+// Hechos ya digeridos (no la tabla cruda): así la IA no puede asociar una
+// cifra real al mes equivocado — solo puede redactar sobre pares correctos.
+$valoresMes = array_map(fn($v) => (float)$v['total'], $ventasMes);
+$iMejor = array_search(max($valoresMes), $valoresMes);
+$iPeor = array_search(min($valoresMes), $valoresMes);
+$primero = $ventasMes[0];
+$ultimo = $ventasMes[count($ventasMes) - 1];
+$hechos = sprintf(
+    "HECHOS (cada cifra pertenece SOLO a lo que se indica):\n"
+    . "- Facturación TOTAL de los 12 meses: %d € (es el acumulado, no de un mes).\n"
+    . "- Gastos totales de los 12 meses: %d €. Resultado: %d €.\n"
+    . "- Pendiente de cobro: %d €. IVA repercutido %d €, soportado %d €.\n"
+    . "- Primer mes (%s): %d € de ventas. Último mes (%s): %d € de ventas.\n"
+    . "- Mejor mes: %s con %d €. Peor mes: %s con %d €.\n",
+    $totVentas, $totCompras, $resultado, $pendiente, $ivaRepercutido, $ivaSoportado,
+    $mesCorto($primero['mes']), $primero['total'], $mesCorto($ultimo['mes']), $ultimo['total'],
+    $mesCorto($ventasMes[$iMejor]['mes']), $valoresMes[$iMejor],
+    $mesCorto($ventasMes[$iPeor]['mes']), $valoresMes[$iPeor]
+);
+// Párrafo de cifras SIEMPRE determinista: las asociaciones no pueden fallar.
+$parrafoCifras = sprintf(
+    'La facturación de los últimos 12 meses asciende a %s frente a %s de gastos, con un resultado de %s. '
+    . 'El mejor mes fue %s (%s) y el más flojo %s (%s); el negocio pasó de facturar %s en %s a %s en %s. '
+    . 'Queda pendiente de cobro %s, y el IVA a ingresar acumulado es de %s.',
+    $fmt($totVentas), $fmt($totCompras), $fmt($resultado),
+    $mesCorto($ventasMes[$iMejor]['mes']), $fmt($valoresMes[$iMejor]),
+    $mesCorto($ventasMes[$iPeor]['mes']), $fmt($valoresMes[$iPeor]),
+    $fmt((float)$primero['total']), $mesCorto($primero['mes']),
+    $fmt((float)$ultimo['total']), $mesCorto($ultimo['mes']),
+    $fmt($pendiente), $fmt($ivaRepercutido - $ivaSoportado)
+);
 
-$analisis = '';
-$ch = curl_init('http://localhost:11434/api/generate');
-curl_setopt_array($ch, [
-    CURLOPT_POST => true,
-    CURLOPT_POSTFIELDS => json_encode([
-        'model' => 'solwed-ai', 'prompt' => $prompt, 'stream' => false,
-        'options' => ['temperature' => 0.2, 'num_predict' => 500],
-    ]),
-    CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 300,
-]);
-$resp = curl_exec($ch);
-curl_close($ch);
-if ($resp !== false) {
-    $analisis = trim(json_decode($resp, true)['response'] ?? '');
+$prompt = "Eres el asesor contable de una pyme española.\n\n" . $hechos
+    . "\nEscribe exactamente 2 párrafos cortos en español: 1) el principal riesgo que ves en la situación, "
+    . "2) una recomendación concreta y accionable. PROHIBIDO escribir números o cifras: valora de forma "
+    . "cualitativa (las cifras ya se muestran aparte). Sin saludos ni despedidas.";
+
+// Generación con validador anti-imprecisiones: toda cifra de 4+ dígitos de la
+// respuesta debe existir literalmente en los datos; si la IA inventa o
+// recombina números, se reintenta a temperatura 0 y, si persiste, se usa un
+// resumen determinista con las cifras exactas.
+$pedirAnalisis = function (string $prompt, float $temperatura) {
+    $ch = curl_init('http://localhost:11434/api/generate');
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode([
+            'model' => 'solwed-ai', 'prompt' => $prompt, 'stream' => false,
+            'options' => ['temperature' => $temperatura, 'num_predict' => 500],
+        ]),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 300,
+    ]);
+    $resp = curl_exec($ch);
+    curl_close($ch);
+    return $resp === false ? null : trim(json_decode($resp, true)['response'] ?? '');
+};
+// La parte de la IA es SOLO cualitativa: cualquier número de 3+ dígitos en su
+// respuesta la invalida (reintento a temperatura 0; después, texto fijo).
+$sinCifras = function (string $texto): bool {
+    return 1 !== preg_match('/\d{3,}|\d+[\.,]\d{3}/', $texto);
+};
+
+$valoracion = $pedirAnalisis($prompt, 0.2);
+if (!is_string($valoracion) || $valoracion === '' || !$sinCifras($valoracion)) {
+    $valoracion = $pedirAnalisis($prompt, 0.0);
 }
-if ($analisis === '') {
-    $analisis = "(El asistente de IA local no está disponible ahora mismo. Arranca Ollama con:  systemctl start ollama)";
+if (!is_string($valoracion) || $valoracion === '' || !$sinCifras($valoracion)) {
+    $valoracion = 'El principal riesgo es el volumen de cobros pendientes, que puede tensionar la tesorería si se acumula.'
+        . "\n\nSe recomienda reforzar el seguimiento de cobros y revisar los gastos con mayor variabilidad mensual.";
 }
+
+$analisis = $parrafoCifras . "\n\n" . $valoracion;
 
 // ---------------------------------------------------------------------------
 // SVG helpers — especificación: barras ≤24px, extremo de dato redondeado 4px
